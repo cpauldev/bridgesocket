@@ -4,6 +4,10 @@ export {
   type DevSocketBridgeOptions,
 } from "./bridge/bridge.js";
 export {
+  DEVSOCKET_PROTOCOL_VERSION,
+  DEVSOCKET_WS_SUBPROTOCOL,
+} from "./bridge/constants.js";
+export {
   startStandaloneDevSocketBridgeServer,
   type StandaloneBridgeServer,
 } from "./bridge/standalone.js";
@@ -88,6 +92,10 @@ export type {
   DevSocketBridgeState,
   DevSocketCommandRequest,
   DevSocketCommandResult,
+  DevSocketErrorCode,
+  DevSocketErrorPayload,
+  DevSocketErrorResponse,
+  DevSocketProtocolVersion,
   DevSocketRuntimePhase,
   DevSocketRuntimeStatus,
 } from "./types.js";

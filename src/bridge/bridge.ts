@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
+import type { Duplex } from "stream";
 import { URL } from "url";
 import { WebSocket, WebSocketServer } from "ws";
 
@@ -9,15 +10,20 @@ import {
 import type {
   DevSocketBridgeEvent,
   DevSocketBridgeState,
+  DevSocketErrorCode,
+  DevSocketErrorPayload,
   DevSocketRuntimeStatus,
 } from "../types.js";
 import {
   API_PROXY_PREFIX,
   BRIDGE_PREFIX_DEFAULT,
   DEFAULT_FALLBACK_COMMAND,
+  DEVSOCKET_PROTOCOL_VERSION,
+  DEVSOCKET_WS_SUBPROTOCOL,
   EVENTS_PATH,
+  WS_HEARTBEAT_INTERVAL_MS_DEFAULT,
 } from "./constants.js";
-import { readRequestBody, writeJson } from "./http.js";
+import { readRequestBody, writeError, writeJson } from "./http.js";
 import type { BridgeMiddlewareServer } from "./server-types.js";
 import {
   createCapabilities,
@@ -29,17 +35,24 @@ export interface DevSocketBridgeOptions extends RuntimeHelperOptions {
   autoStart?: boolean;
   bridgePathPrefix?: string;
   fallbackCommand?: string;
+  eventHeartbeatIntervalMs?: number;
 }
 
 type ResolvedBridgeOptions = Required<
   Pick<
     DevSocketBridgeOptions,
-    "autoStart" | "bridgePathPrefix" | "fallbackCommand"
+    | "autoStart"
+    | "bridgePathPrefix"
+    | "fallbackCommand"
+    | "eventHeartbeatIntervalMs"
   >
 > &
   Omit<
     DevSocketBridgeOptions,
-    "autoStart" | "bridgePathPrefix" | "fallbackCommand"
+    | "autoStart"
+    | "bridgePathPrefix"
+    | "fallbackCommand"
+    | "eventHeartbeatIntervalMs"
   >;
 
 function resolveBridgeOptions(
@@ -49,35 +62,46 @@ function resolveBridgeOptions(
     autoStart: options.autoStart ?? true,
     bridgePathPrefix: options.bridgePathPrefix ?? BRIDGE_PREFIX_DEFAULT,
     fallbackCommand: options.fallbackCommand ?? DEFAULT_FALLBACK_COMMAND,
+    eventHeartbeatIntervalMs:
+      options.eventHeartbeatIntervalMs ?? WS_HEARTBEAT_INTERVAL_MS_DEFAULT,
     ...options,
   };
+}
+
+interface EventClientState {
+  isAlive: boolean;
 }
 
 export class DevSocketBridge {
   #options: ResolvedBridgeOptions;
   #helper: RuntimeHelper;
-  #wss = new WebSocketServer({ noServer: true });
+  #wss = new WebSocketServer({
+    noServer: true,
+    perMessageDeflate: false,
+    handleProtocols: (protocols) => {
+      return protocols.has(DEVSOCKET_WS_SUBPROTOCOL)
+        ? DEVSOCKET_WS_SUBPROTOCOL
+        : false;
+    },
+  });
   #eventClients = new Set<WebSocket>();
+  #eventClientState = new Map<WebSocket, EventClientState>();
   #closed = false;
   #autoStartEnabled = true;
+  #heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  #nextEventId = 1;
 
   constructor(options: DevSocketBridgeOptions = {}) {
     this.#options = resolveBridgeOptions(options);
     this.#helper = new RuntimeHelper(this.#options);
     this.#autoStartEnabled = this.#options.autoStart;
 
-    this.#helper.onStatusChange((status) => {
-      this.emitBridgeEvent({
-        type: "runtime-status",
-        timestamp: Date.now(),
-        status,
-      });
-    });
+    this.#helper.onStatusChange((status) =>
+      this.emitBridgeEvent(this.createRuntimeStatusEvent(status)),
+    );
 
-    this.#wss.on("connection", (socket) => {
-      this.#eventClients.add(socket);
-      socket.on("close", () => this.#eventClients.delete(socket));
-    });
+    this.#wss.on("connection", (socket) => this.registerEventClient(socket));
+    this.startHeartbeatLoop();
   }
 
   getBridgePathPrefix(): string {
@@ -87,6 +111,7 @@ export class DevSocketBridge {
   getState(): DevSocketBridgeState {
     const runtime = this.#helper.getStatus();
     return {
+      protocolVersion: DEVSOCKET_PROTOCOL_VERSION,
       transportState: toTransportState(runtime),
       runtime,
       capabilities: createCapabilities(this.#options.fallbackCommand),
@@ -99,6 +124,8 @@ export class DevSocketBridge {
     await this.#helper.stop();
     this.#eventClients.forEach((socket) => socket.close());
     this.#eventClients.clear();
+    this.#eventClientState.clear();
+    this.stopHeartbeatLoop();
     this.#wss.close();
   }
 
@@ -109,7 +136,7 @@ export class DevSocketBridge {
 
     server.httpServer?.on("upgrade", (...args: unknown[]) => {
       const [req, socket, head] = args as [IncomingMessage, unknown, Buffer];
-      this.handleUpgrade(req, socket as never, head);
+      this.handleUpgrade(req, socket as Duplex, head);
     });
 
     server.httpServer?.on("close", () => {
@@ -121,21 +148,27 @@ export class DevSocketBridge {
     await this.attach(server);
   }
 
-  handleUpgrade(req: IncomingMessage, socket: never, head: Buffer): void {
-    const requestPath = req.url || "/";
-    const eventsPath = `${this.#options.bridgePathPrefix}${EVENTS_PATH}`;
-    if (!requestPath.startsWith(eventsPath)) {
+  handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
+    if (!this.isEventsUpgradePath(req.url || "/")) {
+      return;
+    }
+    const requestedProtocols = this.getRequestedSubprotocols(req);
+    if (
+      requestedProtocols.length > 0 &&
+      !requestedProtocols.includes(DEVSOCKET_WS_SUBPROTOCOL)
+    ) {
+      this.rejectUpgrade(
+        socket,
+        426,
+        `Unsupported WebSocket subprotocol. Include Sec-WebSocket-Protocol: ${DEVSOCKET_WS_SUBPROTOCOL}.`,
+      );
       return;
     }
 
     this.#wss.handleUpgrade(req, socket, head, (ws) => {
       this.#wss.emit("connection", ws, req);
       ws.send(
-        JSON.stringify({
-          type: "runtime-status",
-          timestamp: Date.now(),
-          status: this.#helper.getStatus(),
-        } satisfies DevSocketBridgeEvent),
+        JSON.stringify(this.createRuntimeStatusEvent(this.#helper.getStatus())),
       );
       void this.pipeRuntimeEvents(ws);
     });
@@ -171,10 +204,12 @@ export class DevSocketBridge {
         try {
           await this.#helper.start();
         } catch (error) {
-          writeJson(res, 200, {
-            ...this.getState(),
-            error: error instanceof Error ? error.message : String(error),
-          });
+          this.emitBridgeEvent(
+            this.createRuntimeErrorEvent(
+              error instanceof Error ? error.message : String(error),
+            ),
+          );
+          writeJson(res, 200, this.getState());
           return;
         }
       }
@@ -216,10 +251,18 @@ export class DevSocketBridge {
       return;
     }
 
-    writeJson(res, 404, {
-      success: false,
-      error: `Unknown devsocket bridge route: ${route}`,
-    });
+    this.writeBridgeError(
+      res,
+      404,
+      "route_not_found",
+      `Unknown devsocket bridge route: ${route}`,
+      {
+        details: {
+          route,
+          method,
+        },
+      },
+    );
   }
 
   private shouldAutoStartRuntime(): boolean {
@@ -243,23 +286,36 @@ export class DevSocketBridge {
       try {
         await this.#helper.ensureStarted();
       } catch (error) {
-        writeJson(res, 503, {
-          success: false,
-          error:
-            error instanceof Error ? error.message : "Unable to start runtime",
-          fallbackCommand: this.#options.fallbackCommand,
-        });
+        this.writeBridgeError(
+          res,
+          503,
+          "runtime_start_failed",
+          error instanceof Error ? error.message : "Unable to start runtime",
+          {
+            retryable: true,
+            details: {
+              fallbackCommand: this.#options.fallbackCommand,
+            },
+          },
+        );
         return;
       }
     }
 
     const runtimeUrl = this.#helper.getRuntimeUrl();
     if (!runtimeUrl) {
-      writeJson(res, 503, {
-        success: false,
-        error: "Runtime is not running",
-        fallbackCommand: this.#options.fallbackCommand,
-      });
+      this.writeBridgeError(
+        res,
+        503,
+        "runtime_unavailable",
+        "Runtime is not running",
+        {
+          retryable: true,
+          details: {
+            fallbackCommand: this.#options.fallbackCommand,
+          },
+        },
+      );
       return;
     }
 
@@ -288,11 +344,27 @@ export class DevSocketBridge {
         body: bodyText,
       });
     } catch (error) {
-      writeJson(res, 502, {
-        success: false,
-        error: error instanceof Error ? error.message : "Bridge proxy failed",
-      });
+      this.writeBridgeError(
+        res,
+        502,
+        "bridge_proxy_failed",
+        error instanceof Error ? error.message : "Bridge proxy failed",
+        {
+          retryable: true,
+          details: {
+            target: target.toString(),
+          },
+        },
+      );
       return;
+    }
+
+    if (upstream.status >= 500) {
+      this.emitBridgeEvent(
+        this.createRuntimeErrorEvent(
+          `Upstream runtime returned ${upstream.status} for ${target.pathname}`,
+        ),
+      );
     }
 
     const responseHeaders: Record<string, string> = {};
@@ -312,10 +384,15 @@ export class DevSocketBridge {
       const status = await action();
       writeJson(res, 200, { success: true, runtime: status });
     } catch (error) {
-      writeJson(res, 500, {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.writeBridgeError(
+        res,
+        500,
+        "runtime_control_failed",
+        error instanceof Error ? error.message : String(error),
+        {
+          retryable: true,
+        },
+      );
     }
   }
 
@@ -328,16 +405,182 @@ export class DevSocketBridge {
     }
   }
 
+  private createRuntimeStatusEvent(
+    status: DevSocketRuntimeStatus,
+  ): DevSocketBridgeEvent {
+    return this.createBridgeEvent({
+      type: "runtime-status",
+      status,
+    });
+  }
+
+  private createRuntimeErrorEvent(error: string): DevSocketBridgeEvent {
+    return this.createBridgeEvent({
+      type: "runtime-error",
+      error,
+    });
+  }
+
+  private createBridgeEvent(
+    event:
+      | {
+          type: "runtime-status";
+          status: DevSocketRuntimeStatus;
+        }
+      | {
+          type: "runtime-error";
+          error: string;
+        },
+  ): DevSocketBridgeEvent {
+    return {
+      ...event,
+      protocolVersion: DEVSOCKET_PROTOCOL_VERSION,
+      eventId: this.#nextEventId++,
+      timestamp: Date.now(),
+    };
+  }
+
+  private registerEventClient(socket: WebSocket): void {
+    this.#eventClients.add(socket);
+    this.#eventClientState.set(socket, { isAlive: true });
+
+    socket.on("pong", () => {
+      const state = this.#eventClientState.get(socket);
+      if (state) {
+        state.isAlive = true;
+      }
+    });
+
+    socket.on("close", () => {
+      this.unregisterEventClient(socket);
+    });
+
+    socket.on("error", () => {
+      this.unregisterEventClient(socket);
+    });
+  }
+
+  private unregisterEventClient(socket: WebSocket): void {
+    this.#eventClients.delete(socket);
+    this.#eventClientState.delete(socket);
+  }
+
+  private startHeartbeatLoop(): void {
+    this.#heartbeatTimer = setInterval(() => {
+      for (const socket of this.#eventClients) {
+        if (socket.readyState !== WebSocket.OPEN) {
+          this.unregisterEventClient(socket);
+          continue;
+        }
+
+        const state = this.#eventClientState.get(socket);
+        if (!state) {
+          continue;
+        }
+
+        if (!state.isAlive) {
+          socket.terminate();
+          this.unregisterEventClient(socket);
+          continue;
+        }
+
+        state.isAlive = false;
+        socket.ping();
+      }
+    }, this.#options.eventHeartbeatIntervalMs);
+
+    this.#heartbeatTimer.unref?.();
+  }
+
+  private stopHeartbeatLoop(): void {
+    if (!this.#heartbeatTimer) {
+      return;
+    }
+
+    clearInterval(this.#heartbeatTimer);
+    this.#heartbeatTimer = null;
+  }
+
+  private getRequestedSubprotocols(req: IncomingMessage): string[] {
+    const protocolHeader = req.headers["sec-websocket-protocol"];
+    const raw = Array.isArray(protocolHeader)
+      ? protocolHeader.join(",")
+      : (protocolHeader ?? "");
+
+    return raw
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+  }
+
+  private isEventsUpgradePath(requestUrl: string): boolean {
+    const eventsPath = `${this.#options.bridgePathPrefix}${EVENTS_PATH}`;
+    const parsed = new URL(requestUrl, "http://devsocket.local");
+    return parsed.pathname === eventsPath;
+  }
+
+  private rejectUpgrade(
+    socket: Duplex,
+    statusCode: number,
+    message: string,
+  ): void {
+    const payload = JSON.stringify({
+      success: false,
+      error: {
+        code: "invalid_request",
+        message,
+        retryable: false,
+        details: {
+          wsSubprotocol: DEVSOCKET_WS_SUBPROTOCOL,
+        },
+      } satisfies DevSocketErrorPayload,
+    });
+    const reason = statusCode === 426 ? "Upgrade Required" : "Bad Request";
+    const responseText =
+      `HTTP/1.1 ${statusCode} ${reason}\r\n` +
+      "Connection: close\r\n" +
+      "Content-Type: application/json; charset=utf-8\r\n" +
+      `Content-Length: ${Buffer.byteLength(payload)}\r\n` +
+      "\r\n" +
+      payload;
+
+    try {
+      socket.end(responseText);
+    } catch {
+      socket.destroy();
+    }
+  }
+
+  private writeBridgeError(
+    res: ServerResponse,
+    statusCode: number,
+    code: DevSocketErrorCode,
+    message: string,
+    options?: {
+      retryable?: boolean;
+      details?: Record<string, unknown>;
+    },
+  ): void {
+    const error: DevSocketErrorPayload = {
+      code,
+      message,
+      retryable: options?.retryable ?? false,
+      ...(options?.details ? { details: options.details } : {}),
+    };
+
+    writeError(res, statusCode, error);
+  }
+
   private async pipeRuntimeEvents(client: WebSocket): Promise<void> {
     if (this.shouldAutoStartRuntime()) {
       try {
         await this.#helper.ensureStarted();
       } catch (error) {
-        this.emitBridgeEvent({
-          type: "runtime-error",
-          timestamp: Date.now(),
-          error: error instanceof Error ? error.message : String(error),
-        });
+        this.emitBridgeEvent(
+          this.createRuntimeErrorEvent(
+            error instanceof Error ? error.message : String(error),
+          ),
+        );
         return;
       }
     }
@@ -354,11 +597,7 @@ export class DevSocketBridge {
       }
     });
     upstream.on("error", (error) => {
-      this.emitBridgeEvent({
-        type: "runtime-error",
-        timestamp: Date.now(),
-        error: error.message,
-      });
+      this.emitBridgeEvent(this.createRuntimeErrorEvent(error.message));
     });
     upstream.on("close", () => {
       if (client.readyState === WebSocket.OPEN) {

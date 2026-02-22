@@ -54,7 +54,8 @@ DevSocket gives you:
 - same-origin bridge routes (default prefix: `/__devsocket`)
 - runtime lifecycle control (`start`, `restart`, `stop`) when `command` is configured
 - runtime status state for your UI
-- WebSocket event stream (`/__devsocket/events`)
+- versioned bridge contract (`protocolVersion: "1"`) on bridge state/health
+- WebSocket event stream (`/__devsocket/events`) with ordered event IDs
 - API proxying from host origin to runtime origin (`/__devsocket/api/*`)
 - framework/server/build-tool adapters so the bridge is attached where dev servers actually run
 
@@ -155,19 +156,20 @@ All adapters accept `DevSocketAdapterOptions`, which extends bridge and runtime 
 
 Core bridge/runtime options:
 
-| Option              | Type                                  | Default                    | Notes                                         |
-| ------------------- | ------------------------------------- | -------------------------- | --------------------------------------------- |
-| `autoStart`         | `boolean`                             | `true`                     | Auto-start runtime on state/proxy/event paths |
-| `bridgePathPrefix`  | `string`                              | `"/__devsocket"`           | Route prefix for bridge endpoints             |
-| `fallbackCommand`   | `string`                              | `"devsocket dev"`          | Returned in error payloads for recovery UX    |
-| `command`           | `string`                              | none                       | Required for managed runtime lifecycle        |
-| `args`              | `string[]`                            | `[]`                       | Runtime process args                          |
-| `cwd`               | `string`                              | `process.cwd()`            | Runtime working directory                     |
-| `env`               | `Record<string, string \| undefined>` | none                       | Extra runtime env vars                        |
-| `host`              | `string`                              | `"127.0.0.1"`              | Runtime host binding                          |
-| `healthPath`        | `string`                              | `"/api/version"`           | Health probe path used after spawn            |
-| `startTimeoutMs`    | `number`                              | `15000`                    | Runtime health timeout                        |
-| `runtimePortEnvVar` | `string`                              | `"DEVSOCKET_RUNTIME_PORT"` | Env var populated with allocated port         |
+| Option                     | Type                                  | Default                    | Notes                                                  |
+| -------------------------- | ------------------------------------- | -------------------------- | ------------------------------------------------------ |
+| `autoStart`                | `boolean`                             | `true`                     | Auto-start runtime on state/proxy/event paths          |
+| `bridgePathPrefix`         | `string`                              | `"/__devsocket"`           | Route prefix for bridge endpoints                      |
+| `fallbackCommand`          | `string`                              | `"devsocket dev"`          | Returned in error payloads for recovery UX             |
+| `command`                  | `string`                              | none                       | Required for managed runtime lifecycle                 |
+| `args`                     | `string[]`                            | `[]`                       | Runtime process args                                   |
+| `cwd`                      | `string`                              | `process.cwd()`            | Runtime working directory                              |
+| `env`                      | `Record<string, string \| undefined>` | none                       | Extra runtime env vars                                 |
+| `host`                     | `string`                              | `"127.0.0.1"`              | Runtime host binding                                   |
+| `healthPath`               | `string`                              | `"/api/version"`           | Health probe path used after spawn                     |
+| `startTimeoutMs`           | `number`                              | `15000`                    | Runtime health timeout                                 |
+| `runtimePortEnvVar`        | `string`                              | `"DEVSOCKET_RUNTIME_PORT"` | Env var populated with allocated port                  |
+| `eventHeartbeatIntervalMs` | `number`                              | `30000`                    | Ping interval used to terminate stale event WS clients |
 
 Adapter-focused options:
 
@@ -194,7 +196,7 @@ Notes:
 
 - `GET /state` may auto-start runtime when `autoStart` is enabled.
 - `POST /runtime/stop` disables auto-start until `start`/`restart` is called again.
-- unknown bridge routes return `404` with a JSON error payload.
+- error responses use a standard envelope: `{ success: false, message, error: { code, message, retryable, details? } }`.
 
 ## Bridge Events
 
@@ -202,6 +204,18 @@ Current event union:
 
 - `runtime-status`
 - `runtime-error`
+
+Bridge-emitted events include:
+
+- `protocolVersion` (currently `"1"`)
+- `eventId` (monotonic sequence per bridge instance)
+- `timestamp`
+
+WebSocket subprotocol:
+
+- supported: `devsocket.v1+json`
+- if the client sends `Sec-WebSocket-Protocol`, the offered list must include `devsocket.v1+json`; otherwise the bridge rejects with `426`
+- when accepted, the bridge selects `devsocket.v1+json` as the negotiated subprotocol
 
 Type source: `src/types.ts` (`DevSocketBridgeEvent`).
 
@@ -411,6 +425,7 @@ Primary package exports from `devsocket`:
 - server/build: `attachDevSocketToNodeServer`, `attachDevSocketToFastify`, `attachDevSocketToHonoNodeServer`, `withDevSocketWebpackDevServer`, `withDevSocketRsbuild`, `withDevSocketRspack`
 - runtime helper: `RuntimeHelper`
 - shared types: runtime state, bridge state, capability, command, and event types
+- protocol constants: `DEVSOCKET_PROTOCOL_VERSION`, `DEVSOCKET_WS_SUBPROTOCOL`
 
 Subpath exports:
 

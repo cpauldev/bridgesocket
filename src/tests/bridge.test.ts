@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
 import { DevSocketBridge } from "../bridge/bridge.js";
+import { DEVSOCKET_WS_SUBPROTOCOL } from "../bridge/constants.js";
 import {
   type StandaloneBridgeServer,
   startStandaloneDevSocketBridgeServer,
@@ -58,14 +59,15 @@ describe("DevSocketBridge", () => {
     standaloneServers.push(server);
 
     const stateBeforeStop = await requestJson<{
-      runtime: { phase: string };
+      protocolVersion: string;
+      runtime: { phase: string; lastError: string | null };
       transportState: string;
-      error?: string;
     }>(server.baseUrl, "/__devsocket/state");
 
+    expect(stateBeforeStop.protocolVersion).toBe("1");
     expect(stateBeforeStop.runtime.phase).toBe("error");
     expect(stateBeforeStop.transportState).toBe("degraded");
-    expect(typeof stateBeforeStop.error).toBe("string");
+    expect(typeof stateBeforeStop.runtime.lastError).toBe("string");
 
     const stopResult = await requestJson<{
       success: boolean;
@@ -82,15 +84,61 @@ describe("DevSocketBridge", () => {
 
     const startedAt = Date.now();
     const stateAfterStop = await requestJson<{
-      runtime: { phase: string };
+      runtime: { phase: string; lastError: string | null };
       transportState: string;
-      error?: string;
     }>(server.baseUrl, "/__devsocket/state");
     const elapsedMs = Date.now() - startedAt;
 
     expect(stateAfterStop.runtime.phase).toBe("stopped");
     expect(stateAfterStop.transportState).toBe("bridge_detecting");
-    expect(stateAfterStop.error).toBeUndefined();
+    expect(stateAfterStop.runtime.lastError).toBeNull();
     expect(elapsedMs).toBeLessThan(150);
+  });
+
+  it("returns 426 response for unsupported websocket subprotocol", () => {
+    const bridge = new DevSocketBridge({ autoStart: false });
+    bridges.push(bridge);
+
+    let responseText = "";
+    let destroyed = false;
+
+    const socket = {
+      end: (chunk?: string | Buffer) => {
+        responseText =
+          typeof chunk === "string"
+            ? chunk
+            : chunk
+              ? chunk.toString("utf8")
+              : "";
+      },
+      destroy: () => {
+        destroyed = true;
+      },
+    } as unknown as import("stream").Duplex;
+
+    const request = {
+      url: "/__devsocket/events",
+      headers: {
+        "sec-websocket-protocol": "devsocket.v999+json",
+      },
+    } as unknown as import("http").IncomingMessage;
+
+    bridge.handleUpgrade(request, socket, Buffer.alloc(0));
+
+    expect(responseText).toContain("HTTP/1.1 426 Upgrade Required");
+    const payload = responseText.split("\r\n\r\n")[1];
+    const parsed = JSON.parse(payload) as {
+      success: boolean;
+      error: {
+        code: string;
+        details?: {
+          wsSubprotocol?: string;
+        };
+      };
+    };
+    expect(parsed.success).toBe(false);
+    expect(parsed.error.code).toBe("invalid_request");
+    expect(parsed.error.details?.wsSubprotocol).toBe(DEVSOCKET_WS_SUBPROTOCOL);
+    expect(destroyed).toBe(false);
   });
 });

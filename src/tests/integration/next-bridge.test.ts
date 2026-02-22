@@ -54,5 +54,7 @@ describe("next integration", () => {
     const baseUrl = route.destination.replace("/__devsocket/:path*", "");
     const response = await fetch(`${baseUrl}/__devsocket/health`);
     expect(response.ok).toBe(true);
+    const payload = (await response.json()) as { protocolVersion: string };
+    expect(payload.protocolVersion).toBe("1");
   });
 });

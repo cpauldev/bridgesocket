@@ -58,7 +58,7 @@ export async function startStandaloneDevSocketBridgeServer(
   });
 
   server.on("upgrade", (req, socket, head) => {
-    bridge.handleUpgrade(req, socket as never, head);
+    bridge.handleUpgrade(req, socket, head);
   });
 
   return {

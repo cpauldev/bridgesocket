@@ -1,8 +1,9 @@
-import { afterEach, describe, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { WebSocket } from "ws";
 
+import { DEVSOCKET_WS_SUBPROTOCOL } from "../../bridge/constants.js";
 import {
   type StandaloneBridgeServer,
   startStandaloneDevSocketBridgeServer,
@@ -10,6 +11,8 @@ import {
 
 interface RuntimeStatusEvent {
   type: "runtime-status";
+  protocolVersion: string;
+  eventId: number;
   timestamp: number;
   status: {
     phase: string;
@@ -18,6 +21,8 @@ interface RuntimeStatusEvent {
 
 interface RuntimeErrorEvent {
   type: "runtime-error";
+  protocolVersion: string;
+  eventId: number;
   timestamp: number;
   error: string;
 }
@@ -63,8 +68,8 @@ function toWebSocketUrl(baseUrl: string): string {
 async function waitForRuntimePhase(
   socket: WebSocket,
   expectedPhase: string,
-): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
+): Promise<RuntimeStatusEvent> {
+  return await new Promise<RuntimeStatusEvent>((resolve, reject) => {
     const timeout = setTimeout(
       () => reject(new Error(`Timed out waiting for phase: ${expectedPhase}`)),
       10000,
@@ -79,7 +84,7 @@ async function waitForRuntimePhase(
         ) {
           clearTimeout(timeout);
           socket.off("message", onMessage);
-          resolve();
+          resolve(event);
         }
       } catch {
         // Ignore invalid event payloads.
@@ -102,6 +107,45 @@ describe("bridge events e2e", () => {
 
     const socket = new WebSocket(
       `${toWebSocketUrl(server.baseUrl)}/__devsocket/events`,
+      [DEVSOCKET_WS_SUBPROTOCOL],
+    );
+    sockets.add(socket);
+
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", () => resolve());
+      socket.once("error", (error) => reject(error));
+    });
+    expect(socket.protocol).toBe(DEVSOCKET_WS_SUBPROTOCOL);
+
+    const runningPhasePromise = waitForRuntimePhase(socket, "running");
+    await fetch(`${server.baseUrl}/__devsocket/runtime/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const runningPhase = await runningPhasePromise;
+    expect(runningPhase.protocolVersion).toBe("1");
+
+    const stoppedPhasePromise = waitForRuntimePhase(socket, "stopped");
+    await fetch(`${server.baseUrl}/__devsocket/runtime/stop`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const stoppedPhase = await stoppedPhasePromise;
+    expect(stoppedPhase.protocolVersion).toBe("1");
+    expect(stoppedPhase.eventId).toBeGreaterThan(runningPhase.eventId);
+  });
+
+  it("accepts websocket when supported subprotocol is present in offered list", async () => {
+    const server = await startStandaloneDevSocketBridgeServer({
+      autoStart: false,
+    });
+    standaloneServers.add(server);
+
+    const socket = new WebSocket(
+      `${toWebSocketUrl(server.baseUrl)}/__devsocket/events`,
+      ["devsocket.v999+json", DEVSOCKET_WS_SUBPROTOCOL],
     );
     sockets.add(socket);
 
@@ -110,20 +154,6 @@ describe("bridge events e2e", () => {
       socket.once("error", (error) => reject(error));
     });
 
-    const runningPhase = waitForRuntimePhase(socket, "running");
-    await fetch(`${server.baseUrl}/__devsocket/runtime/start`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
-    });
-    await runningPhase;
-
-    const stoppedPhase = waitForRuntimePhase(socket, "stopped");
-    await fetch(`${server.baseUrl}/__devsocket/runtime/stop`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
-    });
-    await stoppedPhase;
+    expect(socket.protocol).toBe(DEVSOCKET_WS_SUBPROTOCOL);
   });
 });

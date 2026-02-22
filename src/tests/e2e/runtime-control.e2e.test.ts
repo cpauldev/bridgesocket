@@ -106,5 +106,14 @@ describe("runtime control e2e", () => {
       `${server.baseUrl}/__devsocket/api/version`,
     );
     expect(proxyAfterStop.status).toBe(503);
+    const proxyAfterStopPayload = (await proxyAfterStop.json()) as {
+      success: false;
+      message: string;
+      error: {
+        code: string;
+      };
+    };
+    expect(proxyAfterStopPayload.success).toBe(false);
+    expect(proxyAfterStopPayload.error.code).toBe("runtime_unavailable");
   });
 });

@@ -91,8 +91,17 @@ describe("plugin integration", () => {
 
     const response = await fetch(`${harness.baseUrl}/__devsocket/health`);
     expect(response.ok).toBe(true);
-    const payload = (await response.json()) as { ok: boolean; bridge: boolean };
+    const payload = (await response.json()) as {
+      ok: boolean;
+      bridge: boolean;
+      protocolVersion: string;
+      capabilities: {
+        wsSubprotocol: string;
+      };
+    };
     expect(payload.ok).toBe(true);
     expect(payload.bridge).toBe(true);
+    expect(payload.protocolVersion).toBe("1");
+    expect(payload.capabilities.wsSubprotocol).toBe("devsocket.v1+json");
   });
 });

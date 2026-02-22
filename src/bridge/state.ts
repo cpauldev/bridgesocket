@@ -3,6 +3,10 @@ import type {
   DevSocketBridgeState,
   DevSocketRuntimeStatus,
 } from "../types.js";
+import {
+  DEVSOCKET_PROTOCOL_VERSION,
+  DEVSOCKET_WS_SUBPROTOCOL,
+} from "./constants.js";
 
 export function createCapabilities(
   fallbackCommand: string,
@@ -14,6 +18,8 @@ export function createCapabilities(
     canRestartRuntime: true,
     canStopRuntime: true,
     fallbackCommand,
+    wsSubprotocol: DEVSOCKET_WS_SUBPROTOCOL,
+    supportedProtocolVersions: [DEVSOCKET_PROTOCOL_VERSION],
   };
 }
 

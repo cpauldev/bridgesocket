@@ -5,12 +5,36 @@ export type DevSocketRuntimePhase =
   | "stopping"
   | "error";
 
+export type DevSocketProtocolVersion = "1";
+
 export interface DevSocketRuntimeStatus {
   phase: DevSocketRuntimePhase;
   url: string | null;
   pid: number | null;
   startedAt: number | null;
   lastError: string | null;
+}
+
+export type DevSocketErrorCode =
+  | "invalid_request"
+  | "route_not_found"
+  | "runtime_start_failed"
+  | "runtime_control_failed"
+  | "runtime_unavailable"
+  | "bridge_proxy_failed"
+  | "internal_error";
+
+export interface DevSocketErrorPayload {
+  code: DevSocketErrorCode;
+  message: string;
+  retryable: boolean;
+  details?: Record<string, unknown>;
+}
+
+export interface DevSocketErrorResponse {
+  success: false;
+  message: string;
+  error: DevSocketErrorPayload;
 }
 
 export interface DevSocketBridgeCapabilities {
@@ -20,9 +44,12 @@ export interface DevSocketBridgeCapabilities {
   canRestartRuntime: boolean;
   canStopRuntime: boolean;
   fallbackCommand: string;
+  wsSubprotocol: string;
+  supportedProtocolVersions: DevSocketProtocolVersion[];
 }
 
 export interface DevSocketBridgeState {
+  protocolVersion: DevSocketProtocolVersion;
   transportState:
     | "disconnected"
     | "bridge_detecting"
@@ -53,14 +80,18 @@ export interface DevSocketCommandResult {
   data?: Record<string, unknown>;
 }
 
+interface DevSocketBridgeEventBase {
+  protocolVersion: DevSocketProtocolVersion;
+  eventId: number;
+  timestamp: number;
+}
+
 export type DevSocketBridgeEvent =
-  | {
+  | (DevSocketBridgeEventBase & {
       type: "runtime-status";
-      timestamp: number;
       status: DevSocketRuntimeStatus;
-    }
-  | {
+    })
+  | (DevSocketBridgeEventBase & {
       type: "runtime-error";
-      timestamp: number;
       error: string;
-    };
+    });

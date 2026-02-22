@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 
+import type { DevSocketErrorPayload } from "../types.js";
 import { JSON_HEADERS } from "./constants.js";
 
 export function readRequestBody(req: IncomingMessage): Promise<Buffer> {
@@ -18,4 +19,16 @@ export function writeJson(
 ): void {
   res.writeHead(statusCode, JSON_HEADERS);
   res.end(JSON.stringify(payload));
+}
+
+export function writeError(
+  res: ServerResponse,
+  statusCode: number,
+  error: DevSocketErrorPayload,
+): void {
+  writeJson(res, statusCode, {
+    success: false,
+    message: error.message,
+    error,
+  });
 }
