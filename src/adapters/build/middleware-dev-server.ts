@@ -1,0 +1,95 @@
+import {
+  createBridgeLifecycle,
+  resolveAdapterOptions,
+  type BridgeLifecycle,
+  type DevSocketAdapterOptions,
+  type MiddlewareAdapterServer,
+} from "../shared/adapter-utils.js";
+
+export interface SetupMiddlewaresApp {
+  use: (
+    fn: (
+      req: unknown,
+      res: unknown,
+      next: (error?: unknown) => void,
+    ) => void,
+  ) => void;
+}
+
+export interface SetupMiddlewaresHttpServer {
+  on: (
+    event: "upgrade" | "close",
+    listener: (...args: unknown[]) => void,
+  ) => void;
+}
+
+export interface SetupMiddlewaresDevServerLike {
+  app?: SetupMiddlewaresApp;
+  server?: SetupMiddlewaresHttpServer;
+}
+
+export interface SetupMiddlewaresConfig<
+  TMiddlewares extends unknown[] = unknown[],
+  TDevServer extends SetupMiddlewaresDevServerLike = SetupMiddlewaresDevServerLike,
+> {
+  setupMiddlewares?: (
+    middlewares: TMiddlewares,
+    devServer: TDevServer,
+  ) => TMiddlewares;
+}
+
+function toMiddlewareAdapterServer(
+  devServer: SetupMiddlewaresDevServerLike,
+): MiddlewareAdapterServer | null {
+  const app = devServer.app;
+  if (!app || typeof app.use !== "function") {
+    return null;
+  }
+
+  return {
+    middlewares: {
+      use: (handler) => {
+        app.use(handler as never);
+      },
+    },
+    httpServer: devServer.server ?? null,
+  };
+}
+
+export function createSetupMiddlewaresBridgeLifecycle(
+  options: DevSocketAdapterOptions = {},
+): BridgeLifecycle {
+  return createBridgeLifecycle(resolveAdapterOptions(options));
+}
+
+export function withDevSocketSetupMiddlewares<
+  TMiddlewares extends unknown[],
+  TDevServer extends SetupMiddlewaresDevServerLike,
+  TConfig extends SetupMiddlewaresConfig<TMiddlewares, TDevServer>,
+>(
+  config: TConfig,
+  options: DevSocketAdapterOptions = {},
+): TConfig & SetupMiddlewaresConfig<TMiddlewares, TDevServer> {
+  const lifecycle = createSetupMiddlewaresBridgeLifecycle(options);
+  const originalSetupMiddlewares = config.setupMiddlewares;
+
+  return {
+    ...config,
+    setupMiddlewares: (middlewares, devServer) => {
+      const adapterServer = toMiddlewareAdapterServer(
+        devServer as SetupMiddlewaresDevServerLike,
+      );
+      if (adapterServer) {
+        void lifecycle.setup(adapterServer);
+      }
+
+      if (originalSetupMiddlewares) {
+        return originalSetupMiddlewares(
+          middlewares,
+          devServer as TDevServer,
+        );
+      }
+      return middlewares;
+    },
+  } as TConfig & SetupMiddlewaresConfig<TMiddlewares, TDevServer>;
+}

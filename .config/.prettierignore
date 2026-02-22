@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+coverage
+*.lock
+*.log
+*.tsbuildinfo
+.DS_Store
+.git
+.github
+.config/.husky/_
