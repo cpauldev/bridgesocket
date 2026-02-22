@@ -8,10 +8,10 @@
 <p align="center">
   <a href="https://github.com/cpauldev/devsocket/actions/workflows/ci.yml"><img alt="build" src="https://img.shields.io/github/actions/workflow/status/cpauldev/devsocket/ci.yml?branch=main&style=for-the-badge&label=build" height="28" style="vertical-align: middle;" /></a>
   <a href="https://github.com/cpauldev/devsocket/releases"><img alt="release" src="https://img.shields.io/github/v/release/cpauldev/devsocket?style=for-the-badge&label=release" height="28" style="vertical-align: middle;" /></a>
-  <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/cpauldev/devsocket?style=for-the-badge&label=license" height="28" style="vertical-align: middle;" /></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" height="28" style="vertical-align: middle;" /></a>
 </p>
 
-DevSocket is a universal bridge for in-browser dev tools that works with every framework. It attaches to host dev servers and exposes a same-origin control plane (`/__devsocket/*`) so tool UIs can read runtime state, stream events, run runtime actions, and proxy runtime APIs consistently across every framework — allowing tools and applications to run on Next.js, Astro, Nuxt, SvelteKit, Remix, and more.
+DevSocket is a universal bridge for in-browser dev tools that works with every framework — allowing tools and applications to run on Next.js, Astro, Nuxt, SvelteKit, Remix, and more. It attaches to host dev servers and exposes a same-origin control plane (`/__devsocket/*`) so UIs can read runtime state, stream events, run runtime actions, and proxy runtime APIs consistently across every framework.
 
 ## Who Should Use This
 
