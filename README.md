@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="assets/jellyfishy.png" alt="BridgeSocket jellyfish mascot" width="80" style="vertical-align: middle;" />
-  <img src="assets/bridgesocket-logo.png" alt="BridgeSocket logo" width="420" style="vertical-align: middle;" />
+  <img src="assets/bridgesocket-logo.png" alt="BridgeSocket logo" width="480" style="vertical-align: middle;" />
 </p>
 
 <p align="center">
