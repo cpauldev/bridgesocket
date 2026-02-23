@@ -11,7 +11,11 @@
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" height="28" style="vertical-align: middle;" /></a>
 </p>
 
-BridgeSocket is a universal bridge for local development tools. It mounts a same-origin control plane (`/__bridgesocket/*`) on your host dev server so browser UIs and local clients can read state, stream events, control runtime lifecycle, and proxy runtime APIs consistently across frameworks.
+**BridgeSocket** allows developers to build cross-framework companion applications that run locally during development as overlays, sidebars, and panels. Users can install your package, start their project's dev server, and get the same experience across Next.js, Angular, Vue, Astro, Nuxt, SvelteKit, TanStack Start, Remix, and more.
+
+Because web development frameworks are not standardized, it has not been possible to create truly framework-agnostic apps and plugins, much like a Windows executable cannot run on macOS.
+
+BridgeSocket is a universal bridge that mounts a same-origin control plane (`/__bridgesocket/*`) on your host dev server. This lets browser UIs and local clients read state, stream events, control the runtime lifecycle, and proxy runtime APIs consistently across frameworks. Businesses can now offer richer service experiences as web applications while reaching as many developers as possible.
 
 ## Who Should Use This
 
