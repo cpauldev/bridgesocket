@@ -5,6 +5,10 @@ on:
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: write
+  id-token: write
+
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -12,9 +16,6 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
 
     steps:
       - name: Checkout
@@ -26,6 +27,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
+          registry-url: "https://registry.npmjs.org"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -77,6 +79,16 @@ jobs:
           else
             echo "already_published=false" >> "$GITHUB_OUTPUT"
             echo "npm does not have ${PACKAGE_NAME}@${PACKAGE_VERSION}; publish will run."
+          fi
+
+      - name: Verify OIDC is available for trusted publishing
+        if: steps.npm_version.outputs.already_published != 'true'
+        run: |
+          set -euo pipefail
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "OIDC env vars are missing (ACTIONS_ID_TOKEN_REQUEST_URL/TOKEN)."
+            echo "Enable id-token: write and allow OIDC in repo/org Actions settings."
+            exit 1
           fi
 
       - name: Publish to npm
