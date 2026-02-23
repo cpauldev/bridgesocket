@@ -28,6 +28,12 @@ jobs:
         with:
           node-version: 22.x
 
+      - name: Upgrade npm for trusted publishing
+        run: |
+          set -euo pipefail
+          npm install -g npm@^11.5.1
+          npm --version
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
