@@ -64,7 +64,23 @@ jobs:
       - name: Pack
         run: npm pack
 
+      - name: Check if version already exists on npm
+        id: npm_version
+        run: |
+          set -euo pipefail
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version > /dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "npm already has ${PACKAGE_NAME}@${PACKAGE_VERSION}; skipping publish."
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+            echo "npm does not have ${PACKAGE_NAME}@${PACKAGE_VERSION}; publish will run."
+          fi
+
       - name: Publish to npm
+        if: steps.npm_version.outputs.already_published != 'true'
         env:
           NODE_AUTH_TOKEN: ""
         run: npm publish --access public --provenance
