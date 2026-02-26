@@ -1,3 +1,28 @@
 node_modules/
 dist/
 *.tgz
+
+# Framework build outputs / caches
+.next/
+.nuxt/
+.svelte-kit/
+.astro/
+.vite/
+.output/
+.vercel/
+.netlify/
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+
+# Environment files
+.env*.local
+
+# Local Claude settings
+.claude/settings.local.json
+
+# Playwright artifacts
+.playwright-mcp/

@@ -11,9 +11,9 @@
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" height="28" style="vertical-align: middle;" /></a>
 </p>
 
-**BridgeSocket** allows developers to build cross-framework companion applications that run locally during development as overlays, sidebars, and panels. Users can install your package, start their project's dev server, and get the same experience across Next.js, Angular, Vue, Astro, Nuxt, SvelteKit, TanStack Start, Remix, and more.
+**BridgeSocket** allows developers to build cross-framework companion applications that run locally during development as overlays, sidebars, and panels. Users can install your package, start their project's dev server, and get the same experience across Next.js, Vinext, Angular, Vue, Astro, Nuxt, SvelteKit, TanStack Start, Remix, and more.
 
-Because web development frameworks are not standardized, it has not been possible to create truly framework-agnostic apps and plugins, much like a Windows executable cannot run on macOS.
+Every web framework ships its own dev server with different middleware APIs, plugin systems, and configuration hooks. There has been no standard way to mount a companion application at the same origin across all of them — so tools built for Next.js don't work in Vite, tools built for Vite don't work in Angular, and so on.
 
 BridgeSocket is a universal bridge that mounts a same-origin control plane (`/__bridgesocket/*`) on your host dev server. This lets browser UIs and local clients read state, stream events, control the runtime lifecycle, and proxy runtime APIs consistently across frameworks. Businesses can now offer richer service experiences as web applications while reaching as many developers as possible.
 
@@ -39,7 +39,8 @@ _BridgeSocket primarily targets browser-based dev UIs, but the same bridge also 
 - [Bridge Routes](#bridge-routes)
 - [Bridge Events](#bridge-events)
 - [Client API (`bridgesocket/client`)](#client-api-bridgesocketclient)
-- [Adapter Examples](#adapter-examples)
+- [Adapter Examples](#adapter-examples) (Next.js, Vinext, Astro, Nuxt, Angular CLI, Bun.serve, Node, Webpack)
+- [Examples](#examples)
 - [Next.js Bridge Keys](#nextjs-bridge-keys)
 - [Compatibility](#compatibility)
 - [Documentation](#documentation)
@@ -110,6 +111,7 @@ If your package wraps this integration, your end users typically only install yo
 | Host setup                                                                                        | Import path                | Use when                                         |
 | ------------------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------ |
 | Vite-based framework (Vue, SvelteKit, TanStack Start, Remix, React Router, Angular Vite pipeline) | `bridgesocket/vite`        | You want one Vite plugin path.                   |
+| Vinext (Vite-based Next.js)                                                                       | `bridgesocket/vite`        | Vinext uses the Vite plugin path directly.       |
 | Next.js                                                                                           | `bridgesocket/next`        | You want a Next config wrapper and rewrite flow. |
 | Nuxt                                                                                              | `bridgesocket/nuxt`        | You want a Nuxt module integration.              |
 | Astro                                                                                             | `bridgesocket/astro`       | You want Astro integration hooks.                |
@@ -279,6 +281,43 @@ export default withBridgeSocketNext(
 );
 ```
 
+### Vinext
+
+Vinext is a Vite-based reimplementation of the Next.js API surface. Because it uses a Vite dev server, it uses the Vite adapter directly. Place `createBridgeSocketVitePlugin` before the `vinext()` plugin.
+
+```ts
+// vite.config.ts
+import { createBridgeSocketVitePlugin } from "bridgesocket/vite";
+import vinext from "vinext";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  plugins: [
+    createBridgeSocketVitePlugin({
+      command: "node",
+      args: ["./scripts/dev-runtime.js"],
+    }),
+    vinext(),
+  ],
+  resolve: {
+    // Prevent duplicate React instances in Bun workspaces (mirrors vinext CLI auto-config).
+    dedupe: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+    ],
+  },
+  optimizeDeps: {
+    // react-server-dom-webpack ships CJS only. Force pre-bundling so Vite
+    // can serve it as ESM rather than a raw @fs/ path.
+    include: ["react-server-dom-webpack/client.browser"],
+  },
+});
+```
+
+Unlike `withBridgeSocketNext`, no config wrapper or rewrite setup is needed — the Vite plugin attaches the bridge directly to Vinext's dev server.
+
 ### Astro
 
 ```ts
@@ -422,11 +461,25 @@ export default withBridgeSocketNext(
 - `INTEGRATION_GUIDE.md`: end-to-end example for building a CLI-style tool package and user project setup
 - `PROTOCOL.md`: normative bridge contract (routes, events, errors, versioning)
 - `ARCHITECTURE.md`: internal component boundaries and data flow
+- `EXAMPLES.md`: setup and usage guide for the framework examples
 
 Guardrails:
 
 - `bun run docs:lint` validates markdown docs
 - `bun run docs:check` enforces docs synchronization for protocol/API-impacting source changes
+
+## Examples
+
+See [`EXAMPLES.md`](EXAMPLES.md) for full setup and usage instructions.
+
+Quick start:
+
+```bash
+bun run examples:setup  # install deps and build packages (once)
+bun run examples        # start all eight framework examples
+```
+
+Available example IDs: `react`, `vue`, `sveltekit`, `astro`, `nextjs`, `nuxt`, `vanilla`, `vinext`.
 
 ## Packaging
 

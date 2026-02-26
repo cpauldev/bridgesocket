@@ -42,6 +42,10 @@
       "types": "./dist/adapters/framework/nuxt.d.ts",
       "default": "./dist/adapters/framework/nuxt.js"
     },
+    "./vinext": {
+      "types": "./dist/adapters/framework/vinext.d.ts",
+      "default": "./dist/adapters/framework/vinext.js"
+    },
     "./bun": {
       "types": "./dist/adapters/server/bun.d.ts",
       "default": "./dist/adapters/server/bun.js"
@@ -78,6 +82,11 @@
     "ARCHITECTURE.md",
     "LICENSE"
   ],
+  "workspaces": [
+    "packages/*",
+    "examples/*",
+    "examples/shared/*"
+  ],
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "bun run clean && bun x tsc -p tsconfig.build.json",
@@ -91,7 +100,10 @@
     "format": "prettier --config .config/.prettierrc --write --ignore-path .config/.prettierignore .",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "prepare": "husky .config/.husky"
+    "prepare": "husky .config/.husky",
+    "examples": "bun scripts/examples/run.ts",
+    "examples:setup": "bun scripts/examples/setup.ts",
+    "verify:examples": "bun scripts/examples/verify.ts"
   },
   "keywords": [
     "devtools",
@@ -128,16 +140,19 @@
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/node": "^25.2.3",
     "@types/ws": "^8.18.0",
+    "@vitejs/plugin-rsc": "^0.5.21",
     "bun-types": "^1.3.8",
-    "eslint": "^10.0.0",
+    "eslint": "^10.0.2",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.3.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
-    "markdownlint-cli2": "^0.20.0",
+    "markdownlint-cli2": "^0.21.0",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.55.0"
+    "typescript-eslint": "^8.56.1",
+    "vinext": "^0.0.10",
+    "vite": "^7.3.1"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs}": [
