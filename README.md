@@ -11,7 +11,7 @@
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" height="28" style="vertical-align: middle;" /></a>
 </p>
 
-**BridgeSocket** allows developers to build cross-framework companion applications that run locally during development as overlays, sidebars, and panels. Users can install your package, start their project's dev server, and get the same experience across Next.js, Vinext, Angular, Vue, Astro, Nuxt, SvelteKit, TanStack Start, Remix, and more.
+**BridgeSocket** allows developers to build cross-framework companion applications that run locally during development as overlays, sidebars, and panels. Users can install your package, start their project's dev server, and get the same experience across Next.js, Vinext, Angular, Vue, Solid, Astro, Nuxt, SvelteKit, TanStack Start, Remix, and more.
 
 Every web framework ships its own dev server with different middleware APIs, plugin systems, and configuration hooks. There has been no standard way to mount a companion application at the same origin across all of them — so tools built for Next.js don't work in Vite, tools built for Vite don't work in Angular, and so on.
 
@@ -108,21 +108,21 @@ If your package wraps this integration, your end users typically only install yo
 
 ## Integration Surfaces
 
-| Host setup                                                                                        | Import path                | Use when                                         |
-| ------------------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------ |
-| Vite-based framework (Vue, SvelteKit, TanStack Start, Remix, React Router, Angular Vite pipeline) | `bridgesocket/vite`        | You want one Vite plugin path.                   |
-| Vinext (Vite-based Next.js)                                                                       | `bridgesocket/vite`        | Vinext uses the Vite plugin path directly.       |
-| Next.js                                                                                           | `bridgesocket/next`        | You want a Next config wrapper and rewrite flow. |
-| Nuxt                                                                                              | `bridgesocket/nuxt`        | You want a Nuxt module integration.              |
-| Astro                                                                                             | `bridgesocket/astro`       | You want Astro integration hooks.                |
-| Angular CLI (non-Vite pipeline)                                                                   | `bridgesocket/angular/cli` | You need generated proxy config for `ng serve`.  |
-| `Bun.serve`                                                                                       | `bridgesocket/bun`         | You need Bun-native fetch/websocket handlers.    |
-| Node middleware + HTTP server                                                                     | `bridgesocket/node`        | You want direct server attachment.               |
-| Fastify                                                                                           | `bridgesocket/fastify`     | You want Fastify hook-based integration.         |
-| Hono on Node server                                                                               | `bridgesocket/hono`        | You want Hono Node server attachment.            |
-| webpack-dev-server                                                                                | `bridgesocket/webpack`     | You want build-tool level middleware wiring.     |
-| Rsbuild                                                                                           | `bridgesocket/rsbuild`     | You want build-tool level middleware wiring.     |
-| Rspack                                                                                            | `bridgesocket/rspack`      | You want build-tool level middleware wiring.     |
+| Host setup                                                                                                      | Import path                | Use when                                         |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------ |
+| Vite-based framework (React, Vue, Solid, SvelteKit, TanStack Start, Remix, React Router, Angular Vite pipeline) | `bridgesocket/vite`        | You want one Vite plugin path.                   |
+| Vinext (Vite-based Next.js)                                                                                     | `bridgesocket/vite`        | Vinext uses the Vite plugin path directly.       |
+| Next.js                                                                                                         | `bridgesocket/next`        | You want a Next config wrapper and rewrite flow. |
+| Nuxt                                                                                                            | `bridgesocket/nuxt`        | You want a Nuxt module integration.              |
+| Astro                                                                                                           | `bridgesocket/astro`       | You want Astro integration hooks.                |
+| Angular CLI (non-Vite pipeline)                                                                                 | `bridgesocket/angular/cli` | You need generated proxy config for `ng serve`.  |
+| `Bun.serve`                                                                                                     | `bridgesocket/bun`         | You need Bun-native fetch/websocket handlers.    |
+| Node middleware + HTTP server                                                                                   | `bridgesocket/node`        | You want direct server attachment.               |
+| Fastify                                                                                                         | `bridgesocket/fastify`     | You want Fastify hook-based integration.         |
+| Hono on Node server                                                                                             | `bridgesocket/hono`        | You want Hono Node server attachment.            |
+| webpack-dev-server                                                                                              | `bridgesocket/webpack`     | You want build-tool level middleware wiring.     |
+| Rsbuild                                                                                                         | `bridgesocket/rsbuild`     | You want build-tool level middleware wiring.     |
+| Rspack                                                                                                          | `bridgesocket/rspack`      | You want build-tool level middleware wiring.     |
 
 Runtime note:
 
@@ -177,20 +177,23 @@ All adapters accept `BridgeSocketAdapterOptions`, which extends bridge/runtime o
 
 Core options:
 
-| Option                     | Type                                  | Default                       | Notes                                          |
-| -------------------------- | ------------------------------------- | ----------------------------- | ---------------------------------------------- |
-| `autoStart`                | `boolean`                             | `true`                        | Auto-start runtime on state/proxy/event paths. |
-| `bridgePathPrefix`         | `string`                              | `"/__bridgesocket"`           | Route prefix for bridge endpoints.             |
-| `fallbackCommand`          | `string`                              | `"bridgesocket dev"`          | Returned in error payloads for recovery UX.    |
-| `command`                  | `string`                              | none                          | Required for managed runtime lifecycle.        |
-| `args`                     | `string[]`                            | `[]`                          | Runtime process args.                          |
-| `cwd`                      | `string`                              | `process.cwd()`               | Runtime working directory.                     |
-| `env`                      | `Record<string, string \| undefined>` | none                          | Extra runtime env vars.                        |
-| `host`                     | `string`                              | `"127.0.0.1"`                 | Runtime host binding.                          |
-| `healthPath`               | `string`                              | `"/api/version"`              | Health probe path used after spawn.            |
-| `startTimeoutMs`           | `number`                              | `15000`                       | Runtime health timeout.                        |
-| `runtimePortEnvVar`        | `string`                              | `"BRIDGESOCKET_RUNTIME_PORT"` | Env var populated with allocated port.         |
-| `eventHeartbeatIntervalMs` | `number`                              | `30000`                       | Ping interval for stale WS client cleanup.     |
+| Option                     | Type                                  | Default                       | Notes                                                                                                                                               |
+| -------------------------- | ------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `autoStart`                | `boolean`                             | `true`                        | Auto-start runtime on state/proxy/event paths.                                                                                                      |
+| `bridgePathPrefix`         | `string`                              | `"/__bridgesocket"`           | Route prefix for bridge endpoints.                                                                                                                  |
+| `fallbackCommand`          | `string`                              | `"bridgesocket dev"`          | Returned in error payloads for recovery UX.                                                                                                         |
+| `command`                  | `string`                              | none                          | Required for managed runtime lifecycle.                                                                                                             |
+| `args`                     | `string[]`                            | `[]`                          | Runtime process args.                                                                                                                               |
+| `cwd`                      | `string`                              | `process.cwd()`               | Runtime working directory.                                                                                                                          |
+| `env`                      | `Record<string, string \| undefined>` | none                          | Extra runtime env vars.                                                                                                                             |
+| `host`                     | `string`                              | `"127.0.0.1"`                 | Runtime host binding.                                                                                                                               |
+| `healthPath`               | `string`                              | `"/api/version"`              | Health probe path used after spawn.                                                                                                                 |
+| `startTimeoutMs`           | `number`                              | `15000`                       | Runtime health timeout.                                                                                                                             |
+| `runtimePortEnvVar`        | `string`                              | `"BRIDGESOCKET_RUNTIME_PORT"` | Env var populated with allocated port.                                                                                                              |
+| `eventHeartbeatIntervalMs` | `number`                              | `30000`                       | Ping interval for stale WS client cleanup.                                                                                                          |
+| `proxyRuntimeWebSocket`    | `boolean`                             | `true`                        | Proxy runtime WebSocket messages over the bridge events socket. Set to `false` to keep the events socket open without forwarding runtime WS frames. |
+| `instance`                 | `{ id: string; label?: string }`      | none                          | Optional identifier included in bridge state and health responses, useful when multiple bridges share a prefix.                                     |
+| `overlayModule`            | `string`                              | none                          | Package specifier auto-injected as a dev-only side-effect import (e.g. `"mypkg/overlay"`). Supported by Vite, Next.js, Nuxt, and Astro adapters.    |
 
 Adapter-specific options:
 
@@ -476,10 +479,10 @@ Quick start:
 
 ```bash
 bun run examples:setup  # install deps and build packages (once)
-bun run examples        # start all eight framework examples
+bun run examples        # start all nine framework examples
 ```
 
-Available example IDs: `react`, `vue`, `sveltekit`, `astro`, `nextjs`, `nuxt`, `vanilla`, `vinext`.
+Available example IDs: `react`, `vue`, `sveltekit`, `solid`, `astro`, `nextjs`, `nuxt`, `vanilla`, `vinext`.
 
 ## Packaging
 

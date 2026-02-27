@@ -62,6 +62,7 @@ import type {
 
 interface OverlayWindowConfig {
   __DEMO_OVERLAY_STYLE_NONCE__?: string;
+  __NUXT__?: unknown;
 }
 
 interface SileoHeaderView {
@@ -72,6 +73,7 @@ interface SileoHeaderView {
 
 const SILEO_HEADER_HEIGHT = 40;
 const SILEO_HEADER_EXIT_MS = 150;
+const SILEO_HEADER_SUCCESS_DECAY_MS = 4000;
 
 function createKeyValueRow(key: string, value: string): HTMLElement {
   const row = createElement("div", { className: "kv-row" });
@@ -192,11 +194,14 @@ export class DemoOverlay {
   #mounted = false;
   #state: OverlayState;
   #wsBinding: WebSocketBinding | null = null;
+  #wsConnectionVersion = 0;
   #wsConsecutiveFailures = 0;
+  #wsConnected = false;
   #wsFallbackMode = false;
   #wsOpenedAt: number | null = null;
   #reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   #statePollTimer: ReturnType<typeof setInterval> | null = null;
+  #allowWebSocket = true;
   #portal: Portal | null = null;
   #forceMount = false;
   #styleNonce?: string;
@@ -217,6 +222,8 @@ export class DemoOverlay {
     prev: null,
   };
   #headerExitTimer: ReturnType<typeof setTimeout> | null = null;
+  #headerSuccessDecayTimer: ReturnType<typeof setTimeout> | null = null;
+  #headerSuccessSince: number | null = null;
   #renderScheduled = false;
   #bodyUpdateScheduled = false;
   #runtimeRefreshFailures = 0;
@@ -230,6 +237,10 @@ export class DemoOverlay {
     this.#api = createDemoApi(this.#baseUrl);
     this.#forceMount = Boolean(options.force);
     this.#styleNonce = resolveStyleNonce(options.styleNonce);
+    this.#allowWebSocket =
+      typeof window === "undefined"
+        ? true
+        : !(window as Window & OverlayWindowConfig).__NUXT__;
 
     if (this.#forceMount && !settings.enabled) {
       this.applySettings({ ...settings, enabled: true });
@@ -268,6 +279,7 @@ export class DemoOverlay {
   destroy(): void {
     this.clearReconnectTimer();
     this.clearHeaderExitTimer();
+    this.clearHeaderSuccessDecayTimer();
     this.#outsideClickCleanup?.();
     this.#outsideClickCleanup = null;
     this.#sileo?.destroy();
@@ -299,7 +311,12 @@ export class DemoOverlay {
 
   private async bootstrap(): Promise<void> {
     await this.refreshState({ detectBridge: true });
-    this.connectWebSocket();
+    if (this.#allowWebSocket) {
+      this.connectWebSocket();
+    } else {
+      this.#wsConnected = false;
+      this.#wsFallbackMode = true;
+    }
     this.startStatePolling();
     this.dispatch({ type: "bootstrapComplete" });
     if (this.#state.activeTab === "files") {
@@ -456,10 +473,11 @@ export class DemoOverlay {
   private applyTopbarState(): void {
     if (!this.#shadowRoot) return;
     const severity = resolveOverlaySeverity(this.#state);
+    const headerSeverity = this.resolveHeaderSeverity(severity);
     const statusCopy = resolveStatusCopy(this.#state);
     const overlayTitle = "Demo";
 
-    this.syncHeaderLayer(overlayTitle, severity);
+    this.syncHeaderLayer(overlayTitle, headerSeverity);
 
     const root = this.#shadowRoot.querySelector<HTMLElement>(".demo-overlay");
     if (root) root.dataset.severity = severity;
@@ -481,17 +499,6 @@ export class DemoOverlay {
       toggleHeader.setAttribute(
         "aria-label",
         `Toggle Demo overlay. ${statusCopy.title}. ${statusCopy.detail}`,
-      );
-    }
-
-    const currentBadge = this.#shadowRoot.querySelector<HTMLElement>(
-      "[data-shell-header-inner][data-layer='current'] [data-shell-badge]",
-    );
-    if (currentBadge) {
-      currentBadge.dataset.state = this.#headerLayer.current.state;
-      currentBadge.textContent = "";
-      currentBadge.appendChild(
-        createSeverityIcon(this.#headerLayer.current.state),
       );
     }
 
@@ -1058,6 +1065,74 @@ export class DemoOverlay {
     const phase = runtime?.phase ?? "stopped";
     const severity = resolveOverlaySeverity(this.#state);
 
+    // ── Controls section ──
+    const controlsSection = createElement("div", { className: "pane-section" });
+    controlsSection.appendChild(
+      createElement("h4", { className: "pane-title", textContent: "Controls" }),
+    );
+
+    const isTransitioning =
+      phase === "starting" ||
+      phase === "stopping" ||
+      Boolean(this.#state.loadingAction);
+    const isRunning = phase === "running";
+    const hasControl = capabilities?.hasRuntimeControl ?? false;
+    const startLabel =
+      this.#state.loadingAction === "Starting" ? "Starting..." : "Start";
+    const stopLabel =
+      this.#state.loadingAction === "Stopping" ? "Stopping..." : "Stop";
+    const restartLabel =
+      this.#state.loadingAction === "Restarting" ? "Restarting..." : "Restart";
+
+    const actionsGrid = createElement("div", { className: "actions-grid" });
+
+    const startBtn = new Button({
+      variant: "outline",
+      size: "sm",
+      text: startLabel,
+      className: "action-btn",
+      disabled: !hasControl || isRunning || isTransitioning,
+      onClick: () => void this.handleStart(),
+    }).getElement();
+    startBtn.prepend(createIcon("play", { size: 14 }));
+
+    const restartBtn = new Button({
+      variant: "outline",
+      size: "sm",
+      text: restartLabel,
+      className: "action-btn",
+      disabled: !hasControl || !isRunning || isTransitioning,
+      onClick: () => void this.handleRestart(),
+    }).getElement();
+    restartBtn.prepend(createIcon("rotate-ccw", { size: 14 }));
+
+    const stopBtn = new Button({
+      variant: "outline",
+      size: "sm",
+      text: stopLabel,
+      className: "action-btn",
+      disabled: !hasControl || !isRunning || isTransitioning,
+      onClick: () => void this.handleStop(),
+    }).getElement();
+    stopBtn.prepend(createIcon("square", { size: 14 }));
+
+    actionsGrid.appendChild(startBtn);
+    actionsGrid.appendChild(stopBtn);
+    actionsGrid.appendChild(restartBtn);
+
+    controlsSection.appendChild(actionsGrid);
+
+    if (this.#state.errorMessage) {
+      controlsSection.appendChild(
+        createElement("p", {
+          className: "pane-title-copy",
+          textContent: this.#state.errorMessage,
+        }),
+      );
+    }
+
+    pane.appendChild(controlsSection);
+
     // ── Bridge section ──
     const bridgeSection = createElement("div", { className: "pane-section" });
     bridgeSection.appendChild(
@@ -1112,7 +1187,7 @@ export class DemoOverlay {
     );
     const wsGrid = createElement("div", { className: "kv-grid" });
     wsGrid.appendChild(
-      createKeyValueRow("Status", this.#wsOpenedAt ? "Open" : "Closed"),
+      createKeyValueRow("Status", this.#wsConnected ? "Open" : "Closed"),
     );
     if (this.#wsOpenedAt) {
       wsGrid.appendChild(
@@ -1213,67 +1288,6 @@ export class DemoOverlay {
       pane.appendChild(capsSection);
     }
 
-    // ── Controls section ──
-    const controlsSection = createElement("div", { className: "pane-section" });
-    controlsSection.appendChild(
-      createElement("h4", { className: "pane-title", textContent: "Controls" }),
-    );
-
-    const isTransitioning =
-      phase === "starting" ||
-      phase === "stopping" ||
-      Boolean(this.#state.loadingAction);
-    const isRunning = phase === "running";
-    const isStopped = phase === "stopped" || phase === "error";
-
-    const actionsGrid = createElement("div", { className: "actions-grid" });
-
-    const startBtn = new Button({
-      variant: "outline",
-      size: "sm",
-      text: "Start",
-      className: "action-btn",
-      disabled: isRunning || isTransitioning,
-      onClick: () => void this.handleStart(),
-    }).getElement();
-    startBtn.prepend(createIcon("play", { size: 14 }));
-
-    const restartBtn = new Button({
-      variant: "outline",
-      size: "sm",
-      text: "Restart",
-      className: "action-btn",
-      disabled: isStopped || isTransitioning,
-      onClick: () => void this.handleRestart(),
-    }).getElement();
-    restartBtn.prepend(createIcon("rotate-ccw", { size: 14 }));
-
-    const stopBtn = new Button({
-      variant: "outline",
-      size: "sm",
-      text: "Stop",
-      className: "action-btn",
-      disabled: isStopped || isTransitioning,
-      onClick: () => void this.handleStop(),
-    }).getElement();
-    stopBtn.prepend(createIcon("square", { size: 14 }));
-
-    actionsGrid.appendChild(startBtn);
-    actionsGrid.appendChild(restartBtn);
-    actionsGrid.appendChild(stopBtn);
-    controlsSection.appendChild(actionsGrid);
-
-    if (this.#state.errorMessage) {
-      controlsSection.appendChild(
-        createElement("p", {
-          className: "pane-title-copy",
-          textContent: this.#state.errorMessage,
-        }),
-      );
-    }
-
-    pane.appendChild(controlsSection);
-
     return pane;
   }
 
@@ -1373,9 +1387,11 @@ export class DemoOverlay {
         type: "setTransportState",
         transportState: nextTransport,
       });
+      this.dispatch({ type: "markSuccess" });
 
-      if (!this.#state.connected) {
-        this.dispatch({ type: "setConnected", connected: true });
+      const nextConnected = nextTransport === "connected";
+      if (this.#state.connected !== nextConnected) {
+        this.dispatch({ type: "setConnected", connected: nextConnected });
       }
       if (this.#state.loadingAction === "Connecting") {
         this.dispatch({ type: "setLoadingAction", loadingAction: null });
@@ -1404,26 +1420,46 @@ export class DemoOverlay {
   // ── WebSocket ──────────────────────────────────────────────────────────────
 
   private connectWebSocket(): void {
-    this.closeWebSocket();
+    if (!this.#allowWebSocket) return;
+    const connectionVersion = ++this.#wsConnectionVersion;
+    this.#wsBinding?.close();
+    this.#wsBinding = null;
     this.clearReconnectTimer();
 
     try {
       this.#wsBinding = createWebSocketBinding(this.#baseUrl, {
         onOpen: () => {
+          if (connectionVersion !== this.#wsConnectionVersion) return;
           this.#wsConsecutiveFailures = 0;
+          this.#wsConnected = true;
           this.#wsFallbackMode = false;
           this.#wsOpenedAt = Date.now();
+          this.scheduleBodyUpdate();
         },
         onClose: () => {
+          if (connectionVersion !== this.#wsConnectionVersion) return;
+          this.#wsConnected = false;
+          this.#wsConsecutiveFailures += 1;
+          this.#wsFallbackMode = true;
+          this.scheduleBodyUpdate();
           this.scheduleReconnect();
         },
         onError: () => {
-          this.#wsConsecutiveFailures += 1;
+          if (connectionVersion !== this.#wsConnectionVersion) return;
+          this.#wsConnected = false;
+          this.#wsFallbackMode = true;
+          this.scheduleBodyUpdate();
           this.scheduleReconnect();
         },
         onMessage: (message) => {
+          if (connectionVersion !== this.#wsConnectionVersion) return;
           const msg = message as { type?: string; data?: unknown };
-          if (msg.type === "update" || msg.type === "init") {
+          if (
+            msg.type === "update" ||
+            msg.type === "init" ||
+            msg.type === "runtime-status" ||
+            msg.type === "runtime-error"
+          ) {
             void this.refreshState({});
           }
         },
@@ -1434,8 +1470,11 @@ export class DemoOverlay {
   }
 
   private closeWebSocket(): void {
+    this.#wsConnectionVersion += 1;
     this.#wsBinding?.close();
     this.#wsBinding = null;
+    this.#wsConnected = false;
+    this.#wsFallbackMode = true;
   }
 
   private scheduleReconnect(): void {
@@ -1471,18 +1510,93 @@ export class DemoOverlay {
 
   // ── Header layer ───────────────────────────────────────────────────────────
 
-  private syncHeaderLayer(title: string, state: OverlaySeverity): void {
+  private createHeaderInner(
+    view: SileoHeaderView,
+    layer: "current" | "prev",
+    exiting = false,
+  ): HTMLElement {
+    const inner = createElement("div", {
+      attributes: {
+        "data-shell-header-inner": "",
+        "data-layer": layer,
+        ...(exiting ? { "data-exiting": "true" } : {}),
+      },
+    });
+    const badge = createElement("div", {
+      attributes: {
+        "data-shell-badge": "",
+        "data-state": view.state,
+      },
+    });
+    badge.appendChild(createSeverityIcon(view.state));
+    inner.appendChild(badge);
+    inner.appendChild(
+      createElement("span", {
+        attributes: {
+          "data-shell-title": "",
+          "data-state": view.state,
+        },
+        textContent: view.title,
+      }),
+    );
+    return inner;
+  }
+
+  private morphHeaderLayerDom(nextView: SileoHeaderView): boolean {
+    const stack = this.#shadowRoot?.querySelector<HTMLElement>(
+      "[data-shell-header-stack]",
+    );
+    if (!stack) return false;
+
+    stack
+      .querySelectorAll<HTMLElement>(
+        "[data-shell-header-inner][data-layer='prev']",
+      )
+      .forEach((node) => node.remove());
+
+    const currentInner = stack.querySelector<HTMLElement>(
+      "[data-shell-header-inner][data-layer='current']",
+    );
+    if (currentInner) {
+      currentInner.dataset.layer = "prev";
+      currentInner.dataset.exiting = "true";
+    }
+
+    stack.appendChild(this.createHeaderInner(nextView, "current"));
+    return true;
+  }
+
+  private removePrevHeaderLayerDom(): void {
+    this.#shadowRoot
+      ?.querySelectorAll<HTMLElement>(
+        "[data-shell-header-inner][data-layer='prev']",
+      )
+      .forEach((node) => node.remove());
+  }
+
+  private syncHeaderLayer(
+    title: string,
+    state: OverlaySeverity,
+    options: { hydrateOnly?: boolean } = {},
+  ): void {
     const key = `${state}|${title}`;
     const current = this.#headerLayer.current;
     if (current.key === key) return;
 
-    this.#headerLayer = { prev: current, current: { key, title, state } };
+    const nextView: SileoHeaderView = { key, title, state };
+    this.#headerLayer = { prev: current, current: nextView };
+
+    if (!options.hydrateOnly) {
+      const morphed = this.morphHeaderLayerDom(nextView);
+      if (!morphed && this.#mounted) this.scheduleRender();
+    }
+
     this.clearHeaderExitTimer();
     this.#headerExitTimer = setTimeout(() => {
       this.#headerExitTimer = null;
       if (!this.#headerLayer.prev) return;
       this.#headerLayer = { ...this.#headerLayer, prev: null };
-      if (this.#mounted) this.render();
+      this.removePrevHeaderLayerDom();
     }, SILEO_HEADER_EXIT_MS);
   }
 
@@ -1490,6 +1604,47 @@ export class DemoOverlay {
     if (this.#headerExitTimer) {
       clearTimeout(this.#headerExitTimer);
       this.#headerExitTimer = null;
+    }
+  }
+
+  private resolveHeaderSeverity(severity: OverlaySeverity): OverlaySeverity {
+    if (severity !== "success") {
+      this.#headerSuccessSince = null;
+      this.clearHeaderSuccessDecayTimer();
+      return severity;
+    }
+
+    const now = Date.now();
+    if (this.#headerSuccessSince === null) {
+      this.#headerSuccessSince = now;
+    }
+
+    const elapsed = now - this.#headerSuccessSince;
+    if (elapsed >= SILEO_HEADER_SUCCESS_DECAY_MS) {
+      this.clearHeaderSuccessDecayTimer();
+      return "info";
+    }
+
+    this.scheduleHeaderSuccessDecay(SILEO_HEADER_SUCCESS_DECAY_MS - elapsed);
+    return "success";
+  }
+
+  private scheduleHeaderSuccessDecay(remainingMs: number): void {
+    if (this.#headerSuccessDecayTimer) return;
+    this.#headerSuccessDecayTimer = setTimeout(
+      () => {
+        this.#headerSuccessDecayTimer = null;
+        if (!this.#mounted) return;
+        this.applyTopbarState();
+      },
+      Math.max(1, remainingMs),
+    );
+  }
+
+  private clearHeaderSuccessDecayTimer(): void {
+    if (this.#headerSuccessDecayTimer) {
+      clearTimeout(this.#headerSuccessDecayTimer);
+      this.#headerSuccessDecayTimer = null;
     }
   }
 
@@ -1559,6 +1714,7 @@ export class DemoOverlay {
     if (!this.#shadowRoot || !this.#sileoReady) return;
 
     const severity = resolveOverlaySeverity(this.#state);
+    const headerSeverity = this.resolveHeaderSeverity(severity);
     const statusCopy = resolveStatusCopy(this.#state);
     const theme = normalizeTheme(this.#state.settings.theme);
     const position = this.#state.settings.position;
@@ -1583,7 +1739,7 @@ export class DemoOverlay {
     if (this.#styleNonce) styleEl.setAttribute("nonce", this.#styleNonce);
     this.#shadowRoot.appendChild(styleEl);
 
-    this.syncHeaderLayer(overlayTitle, severity);
+    this.syncHeaderLayer(overlayTitle, headerSeverity, { hydrateOnly: true });
 
     const layout = computeSileoLayout({
       mode: "persistent",
@@ -1681,56 +1837,14 @@ export class DemoOverlay {
     const headerStack = createElement("div", {
       attributes: { "data-shell-header-stack": "" },
     });
-    const currentInner = createElement("div", {
-      attributes: { "data-shell-header-inner": "", "data-layer": "current" },
-    });
-    const currentBadge = createElement("div", {
-      attributes: {
-        "data-shell-badge": "",
-        "data-state": this.#headerLayer.current.state,
-      },
-    });
-    currentBadge.appendChild(
-      createSeverityIcon(this.#headerLayer.current.state),
+    headerStack.appendChild(
+      this.createHeaderInner(this.#headerLayer.current, "current"),
     );
-    currentInner.appendChild(currentBadge);
-    currentInner.appendChild(
-      createElement("span", {
-        attributes: {
-          "data-shell-title": "",
-          "data-state": this.#headerLayer.current.state,
-        },
-        textContent: this.#headerLayer.current.title,
-      }),
-    );
-    headerStack.appendChild(currentInner);
 
     if (this.#headerLayer.prev) {
-      const prevInner = createElement("div", {
-        attributes: {
-          "data-shell-header-inner": "",
-          "data-layer": "prev",
-          "data-exiting": "true",
-        },
-      });
-      const prevBadge = createElement("div", {
-        attributes: {
-          "data-shell-badge": "",
-          "data-state": this.#headerLayer.prev.state,
-        },
-      });
-      prevBadge.appendChild(createSeverityIcon(this.#headerLayer.prev.state));
-      prevInner.appendChild(prevBadge);
-      prevInner.appendChild(
-        createElement("span", {
-          attributes: {
-            "data-shell-title": "",
-            "data-state": this.#headerLayer.prev.state,
-          },
-          textContent: this.#headerLayer.prev.title,
-        }),
+      headerStack.appendChild(
+        this.createHeaderInner(this.#headerLayer.prev, "prev", true),
       );
-      headerStack.appendChild(prevInner);
     }
 
     header.appendChild(headerStack);

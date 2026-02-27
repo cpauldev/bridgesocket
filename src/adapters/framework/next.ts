@@ -27,6 +27,35 @@ function ensureBridge(
   return ensureStandaloneBridgeSingleton(options);
 }
 
+type WebpackEntryDescriptor = { import?: string[] };
+type WebpackEntryValue = string[] | WebpackEntryDescriptor;
+type WebpackEntries = Record<string, WebpackEntryValue>;
+type WebpackConfig = Record<string, unknown> & { entry?: unknown };
+type WebpackCtx = { isServer: boolean; dev: boolean };
+
+function prependOverlayToEntries(
+  entries: WebpackEntries,
+  overlayModule: string,
+): WebpackEntries {
+  for (const key of Object.keys(entries)) {
+    const entry = entries[key];
+    if (Array.isArray(entry)) {
+      if (!entry.includes(overlayModule)) {
+        entries[key] = [overlayModule, ...entry];
+      }
+    } else if (
+      entry &&
+      typeof entry === "object" &&
+      Array.isArray(entry.import)
+    ) {
+      if (!entry.import.includes(overlayModule)) {
+        entry.import = [overlayModule, ...entry.import];
+      }
+    }
+  }
+  return entries;
+}
+
 export function withBridgeSocketNext<T extends object>(
   nextConfig: T,
   options: BridgeSocketNextOptions = {},
@@ -42,6 +71,7 @@ export function withBridgeSocketNext<T extends object>(
   const bridgeOptions = { ...resolvedOptions, nextBridgeGlobalKey };
   const next = { ...nextConfig } as T & {
     rewrites?: () => MaybePromise<BridgeSocketRewriteSpec>;
+    webpack?: (config: WebpackConfig, ctx: WebpackCtx) => WebpackConfig;
   };
   const originalRewrites = next.rewrites;
 
@@ -60,6 +90,42 @@ export function withBridgeSocketNext<T extends object>(
       fallback: normalized.fallback,
     };
   };
+
+  const overlayModule = resolvedOptions.overlayModule;
+  if (overlayModule) {
+    const originalWebpack = next.webpack;
+    next.webpack = (config: WebpackConfig, ctx: WebpackCtx): WebpackConfig => {
+      const baseConfig = originalWebpack
+        ? originalWebpack(config, ctx)
+        : config;
+      if (ctx.isServer || !ctx.dev) return baseConfig;
+
+      const originalEntry = baseConfig.entry as
+        | ((...args: unknown[]) => Promise<WebpackEntries>)
+        | WebpackEntries
+        | undefined;
+
+      baseConfig.entry = async (
+        ...args: unknown[]
+      ): Promise<WebpackEntries> => {
+        const entries: WebpackEntries =
+          typeof originalEntry === "function"
+            ? await originalEntry(...args)
+            : (originalEntry ?? {});
+        return prependOverlayToEntries(entries, overlayModule);
+      };
+
+      return baseConfig;
+    };
+
+    // Next.js 16+ errors when a webpack config exists alongside Turbopack
+    // (now the default) but no turbopack config is set. Ensure an empty
+    // turbopack key is present so Next.js knows this is intentional.
+    const nextAny = next as Record<string, unknown>;
+    if (!nextAny.turbopack) {
+      nextAny.turbopack = {};
+    }
+  }
 
   return next;
 }

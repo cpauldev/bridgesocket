@@ -12,7 +12,8 @@
     "demo": "workspace:*",
     "example-ui": "workspace:*",
     "nuxt": "^4.3.1",
-    "vue": "^3.5.0"
+    "vue": "^3.5.0",
+    "universa-ui": "file:../../../universa-ui"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

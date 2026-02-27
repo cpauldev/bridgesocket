@@ -4,6 +4,13 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [demo.vite(), vinext()],
+  server: {
+    watch: {
+      // Running multiple examples generates Nuxt files under ../nuxt/.nuxt.
+      // Ignore those updates so Vinext doesn't force full reload loops.
+      ignored: ["../nuxt/.nuxt/**"],
+    },
+  },
   resolve: {
     // Prevent duplicate React instances when packages are resolved from
     // multiple locations in the Bun workspace (mirrors vinext CLI auto-config).

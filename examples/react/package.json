@@ -13,7 +13,8 @@
     "demo": "workspace:*",
     "example-ui": "workspace:*",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "universa-ui": "file:../../../universa-ui"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

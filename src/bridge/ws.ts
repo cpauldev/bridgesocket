@@ -14,6 +14,7 @@ interface BridgeUpgradeContext {
   wss: WebSocketServer;
   eventBus: BridgeEventBus;
   shouldAutoStartRuntime: () => boolean;
+  shouldProxyRuntimeWebSocket: () => boolean;
   ensureRuntimeStarted: () => Promise<unknown>;
   getRuntimeUrl: () => string | null;
   getRuntimeStatus: () => BridgeSocketRuntimeStatus;
@@ -74,6 +75,10 @@ async function pipeRuntimeEvents(
     }
   }
 
+  if (!context.shouldProxyRuntimeWebSocket()) {
+    return;
+  }
+
   const runtimeUrl = context.getRuntimeUrl();
   if (!runtimeUrl || client.readyState !== WebSocket.OPEN) {
     return;
@@ -88,10 +93,11 @@ async function pipeRuntimeEvents(
   upstream.on("error", (error) => {
     context.eventBus.emitRuntimeError(error.message);
   });
+  // Keep the bridge events socket open even if the runtime websocket closes.
+  // The /events channel is used for bridge runtime status updates and should
+  // remain available independently of runtime websocket proxy health.
   upstream.on("close", () => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.close();
-    }
+    context.eventBus.emitRuntimeError("Runtime websocket closed");
   });
 
   client.on("message", (data, isBinary) => {

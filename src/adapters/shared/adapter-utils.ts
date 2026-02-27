@@ -38,12 +38,15 @@ export interface BridgeSocketAdapterOptions extends BridgeSocketBridgeOptions {
   adapterName?: string;
   rewriteSource?: string;
   nextBridgeGlobalKey?: string;
+  /** Package specifier for the overlay client module to auto-inject (e.g. "demo/overlay"). */
+  overlayModule?: string;
 }
 
 interface ResolvedBridgeSocketAdapterOptions extends BridgeSocketBridgeOptions {
   adapterName: string;
   rewriteSource: string;
   nextBridgeGlobalKey?: string;
+  overlayModule?: string;
 }
 
 export type MiddlewareAdapterServer = BridgeMiddlewareServer;
@@ -67,6 +70,7 @@ export function resolveAdapterOptions(
       options.bridgePathPrefix ?? BRIDGESOCKET_BRIDGE_PATH_PREFIX,
     rewriteSource: options.rewriteSource ?? BRIDGESOCKET_BRIDGE_REWRITE_SOURCE,
     nextBridgeGlobalKey: options.nextBridgeGlobalKey,
+    overlayModule: options.overlayModule,
   };
 }
 
@@ -104,22 +108,33 @@ export function createBridgeLifecycle(
   const resolvedOptions = resolveAdapterOptions(options);
   let bridge: BridgeSocketBridge | null = null;
   let setupPromise: Promise<BridgeSocketBridge> | null = null;
+  let attachedServers = new WeakSet<MiddlewareAdapterServer>();
 
   return {
     async setup(server) {
-      if (bridge) {
-        return bridge;
-      }
       if (setupPromise) {
         return setupPromise;
       }
 
-      setupPromise = attachBridgeToServer(server, resolvedOptions).then(
-        (createdBridge) => {
-          bridge = createdBridge;
-          return createdBridge;
-        },
-      );
+      setupPromise = (async () => {
+        if (bridge?.isClosed()) {
+          bridge = null;
+          attachedServers = new WeakSet<MiddlewareAdapterServer>();
+        }
+
+        if (!bridge) {
+          bridge = await createBridgeSocketBridge(
+            toBridgeOptions(resolvedOptions),
+          );
+        }
+
+        if (!attachedServers.has(server)) {
+          await bridge.attach(server);
+          attachedServers.add(server);
+        }
+
+        return bridge;
+      })();
 
       try {
         return await setupPromise;
@@ -139,6 +154,7 @@ export function createBridgeLifecycle(
 
       bridge = null;
       setupPromise = null;
+      attachedServers = new WeakSet<MiddlewareAdapterServer>();
 
       if (currentBridge) {
         await currentBridge.close();

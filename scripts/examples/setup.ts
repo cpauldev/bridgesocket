@@ -56,6 +56,9 @@ async function main(): Promise<void> {
 
   await step("Installing workspace dependencies", () => run("bun install"));
   await step("Building bridgesocket", () => run("bun run build"));
+  await step("Refreshing local workspace package links", () =>
+    run("bun install --force"),
+  );
   await step("Building demo", () =>
     run("bun run build", join(ROOT_DIR, "packages", "demo")),
   );
@@ -64,7 +67,7 @@ async function main(): Promise<void> {
   console.log(`\nTo start all examples:`);
   console.log(`  ${C.cyan}bun run examples${C.reset}`);
   console.log(`\nTo start specific examples:`);
-  console.log(`  ${C.cyan}bun run examples react nextjs${C.reset}\n`);
+  console.log(`  ${C.cyan}bun run examples react solid nextjs${C.reset}\n`);
 }
 
 await main().catch((error: unknown) => {

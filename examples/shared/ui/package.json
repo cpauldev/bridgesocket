@@ -3,9 +3,34 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "svelte": "./src/svelte/index.ts",
+  "dependencies": {
+    "demo": "workspace:*",
+    "lucide": "^0.575.0",
+    "lucide-react": "^0.575.0",
+    "react": "^19.0.0",
+    "solid-js": "^1.9.9",
+    "vue": "^3.5.0",
+    "universa-ui": "file:../../../../universa-ui"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0"
+  },
   "exports": {
     "./theme": "./src/theme.ts",
+    "./bridge-live": "./src/bridge-live.ts",
+    "./frameworks": "./src/frameworks.ts",
+    "./dashboard": "./src/dashboard.ts",
+    "./react-dashboard": "./src/react-dashboard.tsx",
+    "./vanilla-dashboard": "./src/vanilla-dashboard.ts",
+    "./react": "./src/react.ts",
+    "./solid": "./src/solid.tsx",
+    "./vue": "./src/vue.ts",
+    "./dom": "./src/dom.ts",
+    "./svelte": "./src/svelte/index.ts",
+    "./astro": "./src/astro/index.ts",
     "./styles.css": "./src/styles.css",
+    "./layout.css": "./src/layout.css",
     "./base.css": "./src/base.css",
     "./bridge": "./src/bridge.ts"
   }

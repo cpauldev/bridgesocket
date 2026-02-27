@@ -5,6 +5,7 @@ import { WebSocketServer } from "ws";
 import { RuntimeHelper } from "../runtime/runtime-helper.js";
 import type {
   BridgeSocketBridgeCapabilities,
+  BridgeSocketBridgeInstance,
   BridgeSocketBridgeState,
 } from "../types.js";
 import {
@@ -34,10 +35,26 @@ import type { BridgeMiddlewareServer } from "./server-types.js";
 import { createCapabilities, toTransportState } from "./state.js";
 import { handleBridgeUpgrade } from "./ws.js";
 
+function normalizeBridgeInstance(
+  instance: BridgeSocketBridgeOptions["instance"],
+): BridgeSocketBridgeInstance | undefined {
+  if (!instance) return undefined;
+
+  const id = instance.id.trim();
+  if (!id) return undefined;
+
+  const label = instance.label?.trim();
+  return {
+    id,
+    ...(label ? { label } : {}),
+  };
+}
+
 export class BridgeSocketBridge {
   #options: ResolvedBridgeOptions;
   #helper: RuntimeHelper;
   #capabilities: BridgeSocketBridgeCapabilities;
+  #instance: BridgeSocketBridgeInstance | undefined;
   #wss = new WebSocketServer({
     noServer: true,
     perMessageDeflate: false,
@@ -54,6 +71,7 @@ export class BridgeSocketBridge {
   constructor(options: BridgeSocketBridgeOptions = {}) {
     this.#options = resolveBridgeOptions(options);
     this.#helper = new RuntimeHelper(this.#options);
+    this.#instance = normalizeBridgeInstance(this.#options.instance);
     const support = this.#helper.getControlSupport();
     this.#capabilities = createCapabilities(
       this.#options.fallbackCommand,
@@ -83,6 +101,7 @@ export class BridgeSocketBridge {
       transportState: toTransportState(runtime),
       runtime,
       capabilities: this.#capabilities,
+      ...(this.#instance ? { instance: this.#instance } : {}),
       ...(runtime.lastError ? { error: runtime.lastError } : {}),
     };
   }
@@ -93,6 +112,10 @@ export class BridgeSocketBridge {
     await this.#helper.stop();
     this.#eventBus.close();
     this.#wss.close();
+  }
+
+  isClosed(): boolean {
+    return this.#closed;
   }
 
   async attach(server: BridgeMiddlewareServer): Promise<void> {
@@ -121,6 +144,7 @@ export class BridgeSocketBridge {
       wss: this.#wss,
       eventBus: this.#eventBus,
       shouldAutoStartRuntime: () => this.shouldAutoStartRuntime(),
+      shouldProxyRuntimeWebSocket: () => this.#options.proxyRuntimeWebSocket,
       ensureRuntimeStarted: () => this.#helper.ensureStarted(),
       getRuntimeUrl: () => this.#helper.getRuntimeUrl(),
       getRuntimeStatus: () => this.#helper.getStatus(),
@@ -140,7 +164,16 @@ export class BridgeSocketBridge {
 
     const routeKey = createRouteKey(match.method, match.routePath);
     if (routeKey === "GET /health") {
-      writeJson(res, 200, { ok: true, bridge: true, ...this.getState() });
+      writeJson(
+        res,
+        200,
+        { ok: true, bridge: true, ...this.getState() },
+        {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      );
       return;
     }
 

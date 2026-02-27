@@ -1,4 +1,5 @@
 import type { RuntimeHelperOptions } from "../runtime/runtime-helper.js";
+import type { BridgeSocketBridgeInstance } from "../types.js";
 import {
   BRIDGE_PREFIX_DEFAULT,
   DEFAULT_FALLBACK_COMMAND,
@@ -10,6 +11,8 @@ export interface BridgeSocketBridgeOptions extends RuntimeHelperOptions {
   bridgePathPrefix?: string;
   fallbackCommand?: string;
   eventHeartbeatIntervalMs?: number;
+  proxyRuntimeWebSocket?: boolean;
+  instance?: BridgeSocketBridgeInstance;
 }
 
 export type ResolvedBridgeOptions = Required<
@@ -19,6 +22,7 @@ export type ResolvedBridgeOptions = Required<
     | "bridgePathPrefix"
     | "fallbackCommand"
     | "eventHeartbeatIntervalMs"
+    | "proxyRuntimeWebSocket"
   >
 > &
   Omit<
@@ -27,6 +31,7 @@ export type ResolvedBridgeOptions = Required<
     | "bridgePathPrefix"
     | "fallbackCommand"
     | "eventHeartbeatIntervalMs"
+    | "proxyRuntimeWebSocket"
   >;
 
 export function resolveBridgeOptions(
@@ -38,6 +43,7 @@ export function resolveBridgeOptions(
     fallbackCommand: options.fallbackCommand ?? DEFAULT_FALLBACK_COMMAND,
     eventHeartbeatIntervalMs:
       options.eventHeartbeatIntervalMs ?? WS_HEARTBEAT_INTERVAL_MS_DEFAULT,
+    proxyRuntimeWebSocket: options.proxyRuntimeWebSocket ?? true,
     ...options,
   };
 }

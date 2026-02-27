@@ -8,20 +8,21 @@
 
 ## Overview
 
-The `examples/` directory contains eight framework examples that each demonstrate a working BridgeSocket integration with the `demo` overlay package. Each example starts its own dev server with the demo bridge mounted, so the overlay appears in the browser and connects to a local demo runtime.
+The `examples/` directory contains nine framework examples that each demonstrate a working BridgeSocket integration with the `demo` overlay package. Each example starts its own dev server with the demo bridge mounted, so the overlay appears in the browser and connects to a local demo runtime.
 
 | ID          | Framework  | Default port |
 | ----------- | ---------- | ------------ |
-| `react`     | React      | 5173         |
-| `vue`       | Vue        | 5174         |
-| `sveltekit` | SvelteKit  | 5175         |
-| `astro`     | Astro      | 4321         |
-| `nextjs`    | Next.js    | 3000         |
-| `nuxt`      | Nuxt       | 3001         |
-| `vanilla`   | Vanilla JS | 5176         |
-| `vinext`    | Vinext     | 5177         |
+| `react`     | React      | 4600         |
+| `vue`       | Vue        | 4601         |
+| `sveltekit` | SvelteKit  | 4602         |
+| `solid`     | Solid      | 4603         |
+| `astro`     | Astro      | 4604         |
+| `nextjs`    | Next.js    | 4605         |
+| `nuxt`      | Nuxt       | 4606         |
+| `vanilla`   | Vanilla JS | 4607         |
+| `vinext`    | Vinext     | 4608         |
 
-If a port is already in use the runner searches upward automatically.
+The runner assigns ports sequentially starting at `4600`. If one is already in use, it picks the next available port and continues from there.
 
 ## Prerequisites
 
@@ -52,7 +53,7 @@ After setup completes, no further build steps are needed to run examples unless 
 bun run examples
 ```
 
-Starts all eight framework dev servers concurrently. URLs are printed to the terminal as each server becomes ready. Browser tabs open automatically.
+Starts all nine framework dev servers concurrently. URLs are printed to the terminal as each server becomes ready. Browser tabs open automatically.
 
 ### Specific examples
 
@@ -104,12 +105,14 @@ Each example lives under `examples/<id>/` and follows the same pattern:
 
 - Standard framework project (Next.js app router, SvelteKit, Astro, etc.)
 - `demo` package wired in via the appropriate adapter (`demo.vite()`, `demo.next()`, `demo.astro()`, `demo.nuxt()`)
-- `demo/overlay` imported in the root layout or entry point to mount the overlay
+- No framework-level `demo/overlay` import is required; overlay mounting is handled by the `demo` integration/runtime automatically
 - Shared UI components from `examples/shared/ui/` (`example-ui` workspace package)
 
-### Vinext note
+### Vinext, Solid, and Nuxt notes
 
-Vinext uses the Vite adapter (`demo.vite()`) rather than the Next.js adapter, because Vinext runs a Vite dev server directly. The `vite.config.ts` also includes `resolve.dedupe` for React packages and `optimizeDeps.include` for `react-server-dom-webpack` to prevent Bun workspace resolution issues. See `examples/vinext/vite.config.ts`.
+Vinext and Solid both use the Vite adapter (`demo.vite()`) directly because they run on Vite dev servers. Vinext additionally includes `resolve.dedupe` for React packages and `optimizeDeps.include` for `react-server-dom-webpack` to prevent Bun workspace resolution issues. See `examples/vinext/vite.config.ts`.
+
+Nuxt runs with `--no-fork` in the examples runner to avoid dev worker restart loops (`ECONNRESET`) during multi-example runs.
 
 ## Shared UI package
 
@@ -121,6 +124,5 @@ Vinext uses the Vite adapter (`demo.vite()`) rather than the Next.js adapter, be
 
 ## Notes
 
-- The Nuxt example sets `NUXT_SOCKET=0` to work around an ECONNRESET issue on Windows when running all examples simultaneously ([nuxt/cli#994](https://github.com/nuxt/cli/issues/994)).
 - The `--port` flag is passed automatically by the runner; examples do not need to hard-code ports.
 - Press `Ctrl+C` to stop all running servers.

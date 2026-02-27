@@ -3,7 +3,8 @@ import demo from "demo";
 export default defineNuxtConfig({
   ssr: false,
   modules: ["nuxt-lucide-icons", demo.nuxt()],
-  transpilePackages: ["example-ui"],
+  css: ["example-ui/layout.css", "universa-ui/styles.css"],
+  transpilePackages: ["example-ui", "universa-ui"],
   compatibilityDate: "2024-04-03",
   app: {
     head: {

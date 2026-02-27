@@ -4,6 +4,7 @@ import {
 } from "../bridge/constants.js";
 import type {
   BridgeSocketBridgeEvent,
+  BridgeSocketBridgeInstance,
   BridgeSocketBridgeState,
   BridgeSocketErrorResponse,
   BridgeSocketRuntimeStatus,
@@ -22,6 +23,7 @@ export interface BridgeSocketClientOptions {
 export interface BridgeSocketBridgeHealth extends BridgeSocketBridgeState {
   ok: true;
   bridge: true;
+  instance?: BridgeSocketBridgeInstance;
 }
 
 export interface BridgeSocketEventsSubscriptionOptions {

@@ -48,6 +48,11 @@ export interface BridgeSocketBridgeCapabilities {
   supportedProtocolVersions: BridgeSocketProtocolVersion[];
 }
 
+export interface BridgeSocketBridgeInstance {
+  id: string;
+  label?: string;
+}
+
 export interface BridgeSocketBridgeState {
   protocolVersion: BridgeSocketProtocolVersion;
   transportState:
@@ -58,6 +63,7 @@ export interface BridgeSocketBridgeState {
     | "degraded";
   runtime: BridgeSocketRuntimeStatus;
   capabilities: BridgeSocketBridgeCapabilities;
+  instance?: BridgeSocketBridgeInstance;
   error?: string;
 }
 

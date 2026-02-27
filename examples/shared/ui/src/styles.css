@@ -263,6 +263,23 @@
   color: rgb(254 202 202);
 }
 
+/* ── Spinner ─────────────────────────────────────────────────────────────────── */
+
+.dp-spinner {
+  color: var(--muted-foreground);
+  animation: dp-spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes dp-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ── Button ──────────────────────────────────────────────────────────────────── */
 
 .dp-btn {

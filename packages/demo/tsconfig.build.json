@@ -7,7 +7,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["node", "bun-types"],
+    "types": ["node", "bun-types", "react", "react-dom"],
     "noEmit": false
   },
   "include": ["src/**/*.ts"],

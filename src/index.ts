@@ -108,6 +108,7 @@ export {
 export type {
   BridgeSocketBridgeCapabilities,
   BridgeSocketBridgeEvent,
+  BridgeSocketBridgeInstance,
   BridgeSocketBridgeState,
   BridgeSocketCommandRequest,
   BridgeSocketCommandResult,

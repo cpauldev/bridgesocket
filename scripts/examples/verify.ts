@@ -8,16 +8,26 @@
  *   e.g. bun scripts/examples/verify.ts react nuxt
  */
 
-const EXAMPLES: { name: string; defaultUrl: string }[] = [
-  { name: "react", defaultUrl: "http://localhost:5173" },
-  { name: "vue", defaultUrl: "http://localhost:5174" },
-  { name: "sveltekit", defaultUrl: "http://localhost:5175" },
-  { name: "astro", defaultUrl: "http://localhost:4321" },
-  { name: "nextjs", defaultUrl: "http://localhost:3000" },
-  { name: "nuxt", defaultUrl: "http://localhost:3001" },
-  { name: "vanilla", defaultUrl: "http://localhost:5176" },
-  { name: "vinext", defaultUrl: "http://localhost:5177" },
-];
+const PORT_RANGE_START = 4600;
+
+const EXAMPLE_IDS = [
+  "react",
+  "vue",
+  "sveltekit",
+  "solid",
+  "astro",
+  "nextjs",
+  "nuxt",
+  "vanilla",
+  "vinext",
+] as const;
+
+const EXAMPLES: { name: string; defaultUrl: string }[] = EXAMPLE_IDS.map(
+  (name, index) => ({
+    name,
+    defaultUrl: `http://localhost:${PORT_RANGE_START + index}`,
+  }),
+);
 
 const COLORS = {
   reset: "\x1b[0m",

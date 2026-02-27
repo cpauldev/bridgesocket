@@ -16,8 +16,9 @@ export function writeJson(
   res: ServerResponse,
   statusCode: number,
   payload: unknown,
+  headers: Record<string, string> = {},
 ): void {
-  res.writeHead(statusCode, JSON_HEADERS);
+  res.writeHead(statusCode, { ...JSON_HEADERS, ...headers });
   res.end(JSON.stringify(payload));
 }
 

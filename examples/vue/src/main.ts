@@ -1,11 +1,10 @@
-import { mountOverlay } from "demo/overlay";
-import "example-ui/styles.css";
+import "example-ui/layout.css";
 import { applyTheme, getInitialTheme } from "example-ui/theme";
+import "universa-ui/styles.css";
 import { createApp } from "vue";
 
 import App from "./App.vue";
 
 applyTheme(getInitialTheme());
-mountOverlay();
 
 createApp(App).mount("#app");

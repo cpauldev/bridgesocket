@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { type ChildProcess, exec, spawn } from "child_process";
-import { existsSync, unlinkSync } from "fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 import { createServer } from "net";
 import { platform } from "os";
 import { dirname, join } from "path";
@@ -10,7 +10,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT_DIR = join(__dirname, "../..");
+const EXAMPLES_RUN_LOCK_PATH = join(ROOT_DIR, ".tmp-examples-run.lock");
 const MAX_PORT_SEARCH_ATTEMPTS = 100;
+const PORT_RANGE_START = 4600;
 const OUTPUT_TAIL_LINES = 25;
 const READY_MARKERS = [
   "ready",
@@ -30,8 +32,10 @@ interface ExampleDefinition {
   id: string;
   name: string;
   dir: string;
-  defaultPort: number;
   env?: Record<string, string>;
+  devArgs?: string[];
+  /** Poll the URL after the ready marker fires to confirm the app is actually serving. */
+  confirmUrl?: boolean;
 }
 
 interface RuntimeExample extends ExampleDefinition {
@@ -47,55 +51,56 @@ const EXAMPLES: ExampleDefinition[] = [
     id: "react",
     name: "React",
     dir: "react",
-    defaultPort: 5173,
   },
   {
     id: "vue",
     name: "Vue",
     dir: "vue",
-    defaultPort: 5174,
   },
   {
     id: "sveltekit",
     name: "SvelteKit",
     dir: "sveltekit",
-    defaultPort: 5175,
+  },
+  {
+    id: "solid",
+    name: "Solid",
+    dir: "solid",
   },
   {
     id: "astro",
     name: "Astro",
     dir: "astro",
-    defaultPort: 4321,
   },
   {
     id: "nextjs",
     name: "Next.js",
     dir: "nextjs",
-    defaultPort: 3000,
   },
   {
     id: "nuxt",
     name: "Nuxt",
     dir: "nuxt",
-    defaultPort: 3001,
-    // NUXT_SOCKET=0: workaround for Windows ECONNRESET (nuxt/cli#994)
-    env: { NUXT_SOCKET: "0" },
+    // Nuxt fork mode restarts the worker on unhandled ECONNRESET in dev.
+    // Non-fork mode keeps the server stable in multi-example runs.
+    devArgs: ["--no-fork"],
   },
   {
     id: "vanilla",
     name: "Vanilla",
     dir: "vanilla",
-    defaultPort: 5176,
   },
   {
     id: "vinext",
     name: "Vinext",
     dir: "vinext",
-    defaultPort: 5177,
+    // RSC request handler registers after Vite's socket is ready; poll to confirm.
+    confirmUrl: true,
   },
 ];
 
 const runningProcesses: ChildProcess[] = [];
+let runLockHeld = false;
 
 const COLORS = {
   reset: "\x1b[0m",
@@ -135,6 +140,69 @@ function openInBrowser(url: string) {
   });
 }
 
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function acquireRunLock(): void {
+  if (existsSync(EXAMPLES_RUN_LOCK_PATH)) {
+    try {
+      const stalePid = Number.parseInt(
+        String(JSON.parse(readFileSync(EXAMPLES_RUN_LOCK_PATH, "utf8"))?.pid),
+        10,
+      );
+      if (
+        Number.isFinite(stalePid) &&
+        stalePid > 0 &&
+        isProcessAlive(stalePid)
+      ) {
+        throw new Error(
+          `examples runner is already active (pid ${stalePid}). Stop it before starting another.`,
+        );
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("already active")) {
+        throw error;
+      }
+      // stale lock or invalid file format
+    }
+    try {
+      unlinkSync(EXAMPLES_RUN_LOCK_PATH);
+    } catch {
+      // best effort
+    }
+  }
+
+  writeFileSync(
+    EXAMPLES_RUN_LOCK_PATH,
+    JSON.stringify(
+      {
+        pid: process.pid,
+        startedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  runLockHeld = true;
+}
+
+function releaseRunLock(): void {
+  if (!runLockHeld) return;
+  runLockHeld = false;
+  try {
+    unlinkSync(EXAMPLES_RUN_LOCK_PATH);
+  } catch {
+    // best effort
+  }
+}
+
 function clearNextDevLocks(example: RuntimeExample) {
   if (example.id !== "nextjs") {
     return;
@@ -156,6 +224,22 @@ function includesAny(value: string, markers: string[]): boolean {
   return markers.some((marker) => value.includes(marker));
 }
 
+async function pollUntilServing(url: string, timeoutMs = 20000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
+      // "Cannot GET /" is Vite's fallback when no middleware handles the route.
+      if (res.status !== 404) return;
+      const body = await res.text();
+      if (!body.includes("Cannot GET")) return;
+    } catch {
+      // Server not accepting connections yet — keep waiting.
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = createServer();
@@ -169,12 +253,12 @@ function isPortAvailable(port: number): Promise<boolean> {
 }
 
 async function findAvailablePort(
-  basePort: number,
+  startPort: number,
   reservedPorts: Set<number>,
 ): Promise<number> {
   for (
-    let candidate = basePort;
-    candidate < basePort + MAX_PORT_SEARCH_ATTEMPTS;
+    let candidate = startPort;
+    candidate < startPort + MAX_PORT_SEARCH_ATTEMPTS;
     candidate += 1
   ) {
     if (reservedPorts.has(candidate)) {
@@ -188,7 +272,7 @@ async function findAvailablePort(
   }
 
   throw new Error(
-    `Could not find an open port for ${basePort} within +${MAX_PORT_SEARCH_ATTEMPTS} ports`,
+    `Could not find an open port starting at ${startPort} within +${MAX_PORT_SEARCH_ATTEMPTS} ports`,
   );
 }
 
@@ -196,12 +280,13 @@ function toRuntimeExample(
   definition: ExampleDefinition,
   resolvedPort: number,
 ): RuntimeExample {
+  const extraArgs = definition.devArgs ?? [];
   return {
     ...definition,
     port: resolvedPort,
     cwd: join(ROOT_DIR, "examples", definition.dir),
     command: "bun",
-    args: ["run", "dev", "--port", String(resolvedPort)],
+    args: ["run", "dev", "--", "--port", String(resolvedPort), ...extraArgs],
     env: { PORT: String(resolvedPort), ...(definition.env ?? {}) },
   };
 }
@@ -211,13 +296,12 @@ async function resolveRuntimeExamples(
 ): Promise<RuntimeExample[]> {
   const reservedPorts = new Set<number>();
   const resolvedExamples: RuntimeExample[] = [];
+  let cursor = PORT_RANGE_START;
 
   for (const definition of definitions) {
-    const resolvedPort = await findAvailablePort(
-      definition.defaultPort,
-      reservedPorts,
-    );
+    const resolvedPort = await findAvailablePort(cursor, reservedPorts);
     resolvedExamples.push(toRuntimeExample(definition, resolvedPort));
+    cursor = resolvedPort + 1;
   }
 
   return resolvedExamples;
@@ -289,6 +373,7 @@ function cleanupAndExit(code = 0) {
   runningProcesses.forEach((processHandle) => {
     processHandle.kill();
   });
+  releaseRunLock();
   process.exit(code);
 }
 
@@ -315,15 +400,18 @@ function startExample(
 
   runningProcesses.push(childProcess);
 
-  childProcess.stdout?.on("data", (data) => {
+  childProcess.stdout?.on("data", async (data) => {
     const output = data.toString();
     pushOutputTail(outputTail, output);
 
     if (!hasShownReady && includesAny(output, READY_MARKERS)) {
+      hasShownReady = true;
+      if (example.confirmUrl) {
+        await pollUntilServing(url);
+      }
       log(
         `${COLORS.green}✓${COLORS.reset} ${example.name.padEnd(12)} ${COLORS.bright}${url}${COLORS.reset}`,
       );
-      hasShownReady = true;
       if (openBrowser) openInBrowser(url);
     }
 
@@ -366,6 +454,7 @@ function startExample(
 }
 
 async function main() {
+  acquireRunLock();
   const { openBrowser, selectedExamples } = parseArguments(
     process.argv.slice(2),
   );
@@ -390,5 +479,6 @@ await main().catch((error: unknown) => {
     `${COLORS.red}Failed to start examples: ${message}${COLORS.reset}`,
     COLORS.red,
   );
+  releaseRunLock();
   cleanupAndExit(1);
 });

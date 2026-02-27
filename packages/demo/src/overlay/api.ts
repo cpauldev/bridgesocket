@@ -10,6 +10,8 @@ import type {
   OverlayActionResult,
 } from "./types.js";
 
+const BRIDGESOCKET_WS_SUBPROTOCOL = "bridgesocket.v1+json";
+
 export interface DemoApi {
   getBridgeState: () => Promise<BridgeSocketBridgeState>;
   getRuntimeStatus: () => Promise<BridgeSocketRuntimeStatus>;
@@ -207,12 +209,11 @@ export function createWebSocketBinding(
   baseUrl: string,
   handlers: WebSocketHandlers,
 ): WebSocketBinding {
-  const ws = new WebSocket(
-    toWebSocketUrl(
-      resolveDevServerBaseUrl(baseUrl),
-      `${BRIDGE_BASE_PATH}/events`,
-    ),
+  const wsUrl = toWebSocketUrl(
+    resolveDevServerBaseUrl(baseUrl),
+    `${BRIDGE_BASE_PATH}/events`,
   );
+  const ws = new WebSocket(wsUrl, [BRIDGESOCKET_WS_SUBPROTOCOL]);
 
   ws.addEventListener("open", () => handlers.onOpen?.());
   ws.addEventListener("close", () => handlers.onClose?.());
@@ -220,14 +221,8 @@ export function createWebSocketBinding(
 
   ws.addEventListener("message", (event) => {
     try {
-      const payload = JSON.parse(event.data as string) as { type?: string };
-      if (
-        payload &&
-        typeof payload === "object" &&
-        (payload.type === "init" || payload.type === "update")
-      ) {
-        handlers.onMessage(payload);
-      }
+      const payload = JSON.parse(event.data as string);
+      handlers.onMessage(payload);
     } catch {
       // Ignore malformed payloads.
     }

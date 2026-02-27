@@ -1,0 +1,23 @@
+---
+type Props = {
+  containerClass?: string;
+  containerStyle?: string;
+  [key: string]: unknown;
+};
+
+const {
+  containerClass = "",
+  containerStyle = "",
+  ...rest
+} = Astro.props as Props;
+---
+
+<div
+  data-slot="table-container"
+  class={containerClass}
+  style={containerStyle || undefined}
+>
+  <table data-slot="table" {...rest}>
+    <slot />
+  </table>
+</div>
