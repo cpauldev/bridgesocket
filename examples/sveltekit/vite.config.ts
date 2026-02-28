@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [demo.vite(), sveltekit()],
   server: {
     fs: {
-      allow: ["../shared/ui/src"],
+      allow: ["../shared/ui/src", "../../packages/demo/dist"],
     },
   },
 });

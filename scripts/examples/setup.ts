@@ -52,13 +52,17 @@ async function step(label: string, fn: () => Promise<void>): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const force = process.argv.includes("--force");
+
   console.log(`\n${C.bright}${C.cyan}Setting up demo examples...${C.reset}\n`);
 
   await step("Installing workspace dependencies", () => run("bun install"));
   await step("Building bridgesocket", () => run("bun run build"));
-  await step("Refreshing local workspace package links", () =>
-    run("bun install --force"),
-  );
+  if (force) {
+    await step("Re-linking workspace packages (--force)", () =>
+      run("bun install --force"),
+    );
+  }
   await step("Building demo", () =>
     run("bun run build", join(ROOT_DIR, "packages", "demo")),
   );

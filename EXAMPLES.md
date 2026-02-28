@@ -37,13 +37,21 @@ Run the setup script once from the repository root. It installs workspace depend
 bun run examples:setup
 ```
 
-This runs three steps in order:
+This runs the following steps in order:
 
 1. `bun install` — installs all workspace dependencies
 2. `bun run build` — builds the `bridgesocket` package
 3. `bun run build` in `packages/demo` — builds the `demo` overlay package
 
 After setup completes, no further build steps are needed to run examples unless source files change (see [Rebuilding after source changes](#rebuilding-after-source-changes)).
+
+### Force re-linking workspace packages
+
+```bash
+bun run examples:setup --force
+```
+
+Adds a `bun install --force` step after the initial build, which re-links all workspace packages. Use this if examples fail to resolve workspace packages correctly (e.g. after switching branches, pulling changes, or when Bun's workspace cache is stale).
 
 ## Running Examples
 
