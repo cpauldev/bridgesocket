@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
-import { BridgeSocketBridge } from "../bridge/bridge.js";
-import { BRIDGESOCKET_WS_SUBPROTOCOL } from "../bridge/constants.js";
+import { UniversaBridge } from "../bridge/bridge.js";
+import { UNIVERSA_WS_SUBPROTOCOL } from "../bridge/constants.js";
 import {
   type StandaloneBridgeServer,
-  startStandaloneBridgeSocketBridgeServer,
+  startStandaloneUniversaBridgeServer,
 } from "../bridge/standalone.js";
 
-const bridges: BridgeSocketBridge[] = [];
+const bridges: UniversaBridge[] = [];
 const standaloneServers: StandaloneBridgeServer[] = [];
 
 async function requestJson<T>(
@@ -37,9 +37,9 @@ afterEach(async () => {
   bridges.length = 0;
 });
 
-describe("BridgeSocketBridge", () => {
+describe("UniversaBridge", () => {
   it("reports runtime control as unavailable when command is not configured", () => {
-    const bridge = new BridgeSocketBridge({ autoStart: false });
+    const bridge = new UniversaBridge({ autoStart: false });
     bridges.push(bridge);
 
     const state = bridge.getState();
@@ -53,7 +53,7 @@ describe("BridgeSocketBridge", () => {
   });
 
   it("reports runtime control as available when command is configured", () => {
-    const bridge = new BridgeSocketBridge({
+    const bridge = new UniversaBridge({
       autoStart: false,
       command: process.execPath,
       args: ["-e", "setTimeout(() => process.exit(0), 1000)"],
@@ -69,21 +69,18 @@ describe("BridgeSocketBridge", () => {
   });
 
   it("returns a deterministic error for runtime start without command", async () => {
-    const server = await startStandaloneBridgeSocketBridgeServer({
+    const server = await startStandaloneUniversaBridgeServer({
       autoStart: false,
     });
     standaloneServers.push(server);
 
-    const response = await fetch(
-      `${server.baseUrl}/__bridgesocket/runtime/start`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: "{}",
+    const response = await fetch(`${server.baseUrl}/__universa/runtime/start`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    );
+      body: "{}",
+    });
     expect(response.status).toBe(503);
     const payload = (await response.json()) as {
       success: false;
@@ -101,16 +98,14 @@ describe("BridgeSocketBridge", () => {
   });
 
   it("requires POST for runtime control routes", async () => {
-    const server = await startStandaloneBridgeSocketBridgeServer({
+    const server = await startStandaloneUniversaBridgeServer({
       autoStart: false,
       command: process.execPath,
       args: ["-e", "setTimeout(() => process.exit(0), 1000)"],
     });
     standaloneServers.push(server);
 
-    const response = await fetch(
-      `${server.baseUrl}/__bridgesocket/runtime/start`,
-    );
+    const response = await fetch(`${server.baseUrl}/__universa/runtime/start`);
     expect(response.status).toBe(404);
     const payload = (await response.json()) as {
       success: false;
@@ -123,7 +118,7 @@ describe("BridgeSocketBridge", () => {
   });
 
   it("disables auto-start after explicit stop", async () => {
-    const server = await startStandaloneBridgeSocketBridgeServer({
+    const server = await startStandaloneUniversaBridgeServer({
       autoStart: true,
       command: process.execPath,
       args: ["-e", "setTimeout(() => process.exit(1), 10)"],
@@ -135,7 +130,7 @@ describe("BridgeSocketBridge", () => {
       protocolVersion: string;
       runtime: { phase: string; lastError: string | null };
       transportState: string;
-    }>(server.baseUrl, "/__bridgesocket/state");
+    }>(server.baseUrl, "/__universa/state");
 
     expect(stateBeforeStop.protocolVersion).toBe("1");
     expect(stateBeforeStop.runtime.phase).toBe("error");
@@ -145,7 +140,7 @@ describe("BridgeSocketBridge", () => {
     const stopResult = await requestJson<{
       success: boolean;
       runtime: { phase: string };
-    }>(server.baseUrl, "/__bridgesocket/runtime/stop", {
+    }>(server.baseUrl, "/__universa/runtime/stop", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -159,7 +154,7 @@ describe("BridgeSocketBridge", () => {
     const stateAfterStop = await requestJson<{
       runtime: { phase: string; lastError: string | null };
       transportState: string;
-    }>(server.baseUrl, "/__bridgesocket/state");
+    }>(server.baseUrl, "/__universa/state");
     const elapsedMs = Date.now() - startedAt;
 
     expect(stateAfterStop.runtime.phase).toBe("stopped");
@@ -169,7 +164,7 @@ describe("BridgeSocketBridge", () => {
   });
 
   it("accepts state route requests with query strings", async () => {
-    const server = await startStandaloneBridgeSocketBridgeServer({
+    const server = await startStandaloneUniversaBridgeServer({
       autoStart: false,
     });
     standaloneServers.push(server);
@@ -177,13 +172,13 @@ describe("BridgeSocketBridge", () => {
     const state = await requestJson<{
       protocolVersion: string;
       runtime: { phase: string };
-    }>(server.baseUrl, "/__bridgesocket/state?source=test");
+    }>(server.baseUrl, "/__universa/state?source=test");
     expect(state.protocolVersion).toBe("1");
     expect(state.runtime.phase).toBe("stopped");
   });
 
   it("returns 426 response for unsupported websocket subprotocol", () => {
-    const bridge = new BridgeSocketBridge({ autoStart: false });
+    const bridge = new UniversaBridge({ autoStart: false });
     bridges.push(bridge);
 
     let responseText = "";
@@ -204,9 +199,9 @@ describe("BridgeSocketBridge", () => {
     } as unknown as import("stream").Duplex;
 
     const request = {
-      url: "/__bridgesocket/events",
+      url: "/__universa/events",
       headers: {
-        "sec-websocket-protocol": "bridgesocket.v999+json",
+        "sec-websocket-protocol": "universa.v999+json",
       },
     } as unknown as import("http").IncomingMessage;
 
@@ -227,9 +222,7 @@ describe("BridgeSocketBridge", () => {
     expect(parsed.success).toBe(false);
     expect(parsed.message).toContain("Unsupported WebSocket subprotocol");
     expect(parsed.error.code).toBe("invalid_request");
-    expect(parsed.error.details?.wsSubprotocol).toBe(
-      BRIDGESOCKET_WS_SUBPROTOCOL,
-    );
+    expect(parsed.error.details?.wsSubprotocol).toBe(UNIVERSA_WS_SUBPROTOCOL);
     expect(destroyed).toBe(false);
   });
 });

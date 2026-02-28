@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
-import { BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY } from "../adapters/shared/adapter-utils.js";
-import { createBridgeSocketToolPreset } from "../preset.js";
+import { UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY } from "../adapters/shared/adapter-utils.js";
+import { createUniversaToolPreset } from "../preset.js";
 
 type StandaloneBridgeLike = {
   baseUrl: string;
@@ -53,9 +53,9 @@ afterEach(async () => {
   await clearSeededStandaloneBridges();
 });
 
-describe("createBridgeSocketToolPreset", () => {
+describe("createUniversaToolPreset", () => {
   it("exposes all adapter surfaces from one preset object", () => {
-    const preset = createBridgeSocketToolPreset();
+    const preset = createUniversaToolPreset();
 
     expect(typeof preset.vite).toBe("function");
     expect(typeof preset.next).toBe("function");
@@ -77,12 +77,12 @@ describe("createBridgeSocketToolPreset", () => {
   });
 
   it("applies base options to next and angular-cli wrappers", async () => {
-    const nextBridgeKey = `${BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY}:preset:next`;
-    const angularBridgeKey = `${BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY}:preset:angular`;
+    const nextBridgeKey = `${UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY}:preset:next`;
+    const angularBridgeKey = `${UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY}:preset:angular`;
     seedStandaloneBridge(nextBridgeKey, "http://127.0.0.1:40101");
     seedStandaloneBridge(angularBridgeKey, "http://127.0.0.1:40102");
 
-    const preset = createBridgeSocketToolPreset({
+    const preset = createUniversaToolPreset({
       rewriteSource: "/acme/:path*",
       nextBridgeGlobalKey: nextBridgeKey,
       bridgePathPrefix: "/__acme",
@@ -123,12 +123,12 @@ describe("createBridgeSocketToolPreset", () => {
   });
 
   it("allows per-call option overrides on top of preset defaults", async () => {
-    const baseBridgeKey = `${BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY}:preset:base`;
-    const overrideBridgeKey = `${BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY}:preset:override`;
+    const baseBridgeKey = `${UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY}:preset:base`;
+    const overrideBridgeKey = `${UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY}:preset:override`;
     seedStandaloneBridge(baseBridgeKey, "http://127.0.0.1:40201");
     seedStandaloneBridge(overrideBridgeKey, "http://127.0.0.1:40202");
 
-    const preset = createBridgeSocketToolPreset({
+    const preset = createUniversaToolPreset({
       rewriteSource: "/base/:path*",
       nextBridgeGlobalKey: baseBridgeKey,
     });

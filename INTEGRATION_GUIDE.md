@@ -1,4 +1,4 @@
-# BridgeSocket Integration Guide
+# Universa Integration Guide
 
 This is a basic tool-author guide.
 
@@ -11,7 +11,7 @@ The example tool below is `acmetool`.
 
 ## 1. Build a Runtime Command
 
-Your tool should have a command BridgeSocket can start, usually `acmetool dev`.
+Your tool should have a command Universa can start, usually `acmetool dev`.
 
 ```js
 // runtime/dev-server.mjs
@@ -77,9 +77,9 @@ This is the simplest integration shape for tool authors and users.
 
 ```ts
 // src/index.ts
-import { createBridgeSocketToolPreset } from "bridgesocket/preset";
+import { createUniversaToolPreset } from "universa-kit/preset";
 
-export const acmetool = createBridgeSocketToolPreset({
+export const acmetool = createUniversaToolPreset({
   command: "acmetool",
   args: ["dev"],
   fallbackCommand: "acmetool dev",
@@ -122,10 +122,10 @@ npm run dev
 
 Bridge routes are mounted on same origin:
 
-- `GET /__bridgesocket/health`
-- `GET /__bridgesocket/state`
-- `WS /__bridgesocket/events`
-- `ANY /__bridgesocket/api/*`
+- `GET /__universa/health`
+- `GET /__universa/state`
+- `WS /__universa/events`
+- `ANY /__universa/api/*`
 
 ## 4. User Integration Example (Vite)
 
@@ -154,12 +154,12 @@ npm run dev
 This example mounts a minimal Shadow DOM overlay and wires runtime controls.
 
 ```ts
-import { createBridgeSocketClient } from "bridgesocket/client";
+import { createUniversaClient } from "universa-kit/client";
 
-const client = createBridgeSocketClient();
+const client = createUniversaClient();
 
 const host = document.createElement("div");
-host.id = "acmetool-bridgesocket-overlay";
+host.id = "acmetool-universa-kit-overlay";
 document.body.appendChild(host);
 
 const shadow = host.attachShadow({ mode: "open" });

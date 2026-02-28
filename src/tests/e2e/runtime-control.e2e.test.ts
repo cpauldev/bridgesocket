@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 
 import {
   type StandaloneBridgeServer,
-  startStandaloneBridgeSocketBridgeServer,
+  startStandaloneUniversaBridgeServer,
 } from "../../bridge/standalone.js";
 
 const fixtureRuntimeScript = resolve(
@@ -25,7 +25,7 @@ afterEach(async () => {
 
 describe("runtime control e2e", () => {
   it("starts, restarts, stops runtime and proxies API calls", async () => {
-    const server = await startStandaloneBridgeSocketBridgeServer({
+    const server = await startStandaloneUniversaBridgeServer({
       autoStart: false,
       command: process.execPath,
       args: [fixtureRuntimeScript],
@@ -34,12 +34,12 @@ describe("runtime control e2e", () => {
     standaloneServers.add(server);
 
     const initialStatus = (await (
-      await fetch(`${server.baseUrl}/__bridgesocket/runtime/status`)
+      await fetch(`${server.baseUrl}/__universa/runtime/status`)
     ).json()) as { phase: string };
     expect(initialStatus.phase).toBe("stopped");
 
     const startResult = (await (
-      await fetch(`${server.baseUrl}/__bridgesocket/runtime/start`, {
+      await fetch(`${server.baseUrl}/__universa/runtime/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
@@ -53,7 +53,7 @@ describe("runtime control e2e", () => {
     expect(typeof startResult.runtime.pid).toBe("number");
 
     const versionResponse = await fetch(
-      `${server.baseUrl}/__bridgesocket/api/version`,
+      `${server.baseUrl}/__universa/api/version`,
     );
     expect(versionResponse.ok).toBe(true);
     const versionPayload = (await versionResponse.json()) as {
@@ -63,14 +63,11 @@ describe("runtime control e2e", () => {
     expect(versionPayload.ok).toBe(true);
     expect(versionPayload.runtime).toBe("e2e");
 
-    const echoResponse = await fetch(
-      `${server.baseUrl}/__bridgesocket/api/echo`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "hello" }),
-      },
-    );
+    const echoResponse = await fetch(`${server.baseUrl}/__universa/api/echo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "hello" }),
+    });
     expect(echoResponse.ok).toBe(true);
     const echoPayload = (await echoResponse.json()) as {
       method: string;
@@ -81,7 +78,7 @@ describe("runtime control e2e", () => {
 
     const binaryBody = new Uint8Array([0x00, 0x01, 0xff, 0xfe, 0x0a]);
     const binaryEchoResponse = await fetch(
-      `${server.baseUrl}/__bridgesocket/api/echo-binary`,
+      `${server.baseUrl}/__universa/api/echo-binary`,
       {
         method: "POST",
         headers: {
@@ -97,7 +94,7 @@ describe("runtime control e2e", () => {
     expect(binaryEchoPayload.bodyHex).toBe("0001fffe0a");
 
     const cookieResponse = await fetch(
-      `${server.baseUrl}/__bridgesocket/api/cookies`,
+      `${server.baseUrl}/__universa/api/cookies`,
     );
     expect(cookieResponse.ok).toBe(true);
     const responseHeaders = cookieResponse.headers as Headers & {
@@ -115,7 +112,7 @@ describe("runtime control e2e", () => {
     ]);
 
     const restartResult = (await (
-      await fetch(`${server.baseUrl}/__bridgesocket/runtime/restart`, {
+      await fetch(`${server.baseUrl}/__universa/runtime/restart`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
@@ -128,7 +125,7 @@ describe("runtime control e2e", () => {
     expect(restartResult.runtime.phase).toBe("running");
 
     const stopResult = (await (
-      await fetch(`${server.baseUrl}/__bridgesocket/runtime/stop`, {
+      await fetch(`${server.baseUrl}/__universa/runtime/stop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
@@ -141,7 +138,7 @@ describe("runtime control e2e", () => {
     expect(stopResult.runtime.phase).toBe("stopped");
 
     const proxyAfterStop = await fetch(
-      `${server.baseUrl}/__bridgesocket/api/version`,
+      `${server.baseUrl}/__universa/api/version`,
     );
     expect(proxyAfterStop.status).toBe(503);
     const proxyAfterStopPayload = (await proxyAfterStop.json()) as {

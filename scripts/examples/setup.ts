@@ -57,7 +57,7 @@ async function main(): Promise<void> {
   console.log(`\n${C.bright}${C.cyan}Setting up demo examples...${C.reset}\n`);
 
   await step("Installing workspace dependencies", () => run("bun install"));
-  await step("Building bridgesocket", () => run("bun run build"));
+  await step("Building universa-kit", () => run("bun run build"));
   if (force) {
     await step("Re-linking workspace packages (--force)", () =>
       run("bun install --force"),

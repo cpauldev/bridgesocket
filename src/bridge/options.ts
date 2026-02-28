@@ -1,23 +1,23 @@
 import type { RuntimeHelperOptions } from "../runtime/runtime-helper.js";
-import type { BridgeSocketBridgeInstance } from "../types.js";
+import type { UniversaBridgeInstance } from "../types.js";
 import {
   BRIDGE_PREFIX_DEFAULT,
   DEFAULT_FALLBACK_COMMAND,
   WS_HEARTBEAT_INTERVAL_MS_DEFAULT,
 } from "./constants.js";
 
-export interface BridgeSocketBridgeOptions extends RuntimeHelperOptions {
+export interface UniversaBridgeOptions extends RuntimeHelperOptions {
   autoStart?: boolean;
   bridgePathPrefix?: string;
   fallbackCommand?: string;
   eventHeartbeatIntervalMs?: number;
   proxyRuntimeWebSocket?: boolean;
-  instance?: BridgeSocketBridgeInstance;
+  instance?: UniversaBridgeInstance;
 }
 
 export type ResolvedBridgeOptions = Required<
   Pick<
-    BridgeSocketBridgeOptions,
+    UniversaBridgeOptions,
     | "autoStart"
     | "bridgePathPrefix"
     | "fallbackCommand"
@@ -26,7 +26,7 @@ export type ResolvedBridgeOptions = Required<
   >
 > &
   Omit<
-    BridgeSocketBridgeOptions,
+    UniversaBridgeOptions,
     | "autoStart"
     | "bridgePathPrefix"
     | "fallbackCommand"
@@ -35,7 +35,7 @@ export type ResolvedBridgeOptions = Required<
   >;
 
 export function resolveBridgeOptions(
-  options: BridgeSocketBridgeOptions,
+  options: UniversaBridgeOptions,
 ): ResolvedBridgeOptions {
   return {
     autoStart: options.autoStart ?? true,

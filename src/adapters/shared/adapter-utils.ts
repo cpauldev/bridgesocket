@@ -1,40 +1,39 @@
 import {
-  type BridgeSocketBridge,
-  type BridgeSocketBridgeOptions,
-  createBridgeSocketBridge,
+  type UniversaBridge,
+  type UniversaBridgeOptions,
+  createUniversaBridge,
 } from "../../bridge/bridge.js";
 import type { BridgeMiddlewareServer } from "../../bridge/server-types.js";
 import {
   type StandaloneBridgeServer,
-  startStandaloneBridgeSocketBridgeServer,
+  startStandaloneUniversaBridgeServer,
 } from "../../bridge/standalone.js";
 
-export const BRIDGESOCKET_DEV_ADAPTER_NAME = "bridgesocket-bridge";
-export const BRIDGESOCKET_BRIDGE_PATH_PREFIX = "/__bridgesocket";
-export const BRIDGESOCKET_BRIDGE_REWRITE_SOURCE = "/__bridgesocket/:path*";
-export const BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY =
-  "__BRIDGESOCKET_NEXT_BRIDGE__";
+export const UNIVERSA_DEV_ADAPTER_NAME = "universa-bridge";
+export const UNIVERSA_BRIDGE_PATH_PREFIX = "/__universa";
+export const UNIVERSA_BRIDGE_REWRITE_SOURCE = "/__universa/:path*";
+export const UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY = "__UNIVERSA_NEXT_BRIDGE__";
 
-export interface BridgeSocketRewriteRule {
+export interface UniversaRewriteRule {
   source: string;
   destination: string;
 }
 
-export type BridgeSocketRewriteSpec =
-  | BridgeSocketRewriteRule[]
+export type UniversaRewriteSpec =
+  | UniversaRewriteRule[]
   | {
-      beforeFiles?: BridgeSocketRewriteRule[];
-      afterFiles?: BridgeSocketRewriteRule[];
-      fallback?: BridgeSocketRewriteRule[];
+      beforeFiles?: UniversaRewriteRule[];
+      afterFiles?: UniversaRewriteRule[];
+      fallback?: UniversaRewriteRule[];
     };
 
-export interface BridgeSocketNormalizedRewrites {
-  beforeFiles: BridgeSocketRewriteRule[];
-  afterFiles: BridgeSocketRewriteRule[];
-  fallback: BridgeSocketRewriteRule[];
+export interface UniversaNormalizedRewrites {
+  beforeFiles: UniversaRewriteRule[];
+  afterFiles: UniversaRewriteRule[];
+  fallback: UniversaRewriteRule[];
 }
 
-export interface BridgeSocketAdapterOptions extends BridgeSocketBridgeOptions {
+export interface UniversaAdapterOptions extends UniversaBridgeOptions {
   adapterName?: string;
   rewriteSource?: string;
   nextBridgeGlobalKey?: string;
@@ -42,7 +41,7 @@ export interface BridgeSocketAdapterOptions extends BridgeSocketBridgeOptions {
   overlayModule?: string;
 }
 
-interface ResolvedBridgeSocketAdapterOptions extends BridgeSocketBridgeOptions {
+interface ResolvedUniversaAdapterOptions extends UniversaBridgeOptions {
   adapterName: string;
   rewriteSource: string;
   nextBridgeGlobalKey?: string;
@@ -52,31 +51,30 @@ interface ResolvedBridgeSocketAdapterOptions extends BridgeSocketBridgeOptions {
 export type MiddlewareAdapterServer = BridgeMiddlewareServer;
 
 export interface BridgeLifecycle {
-  setup: (server: MiddlewareAdapterServer) => Promise<BridgeSocketBridge>;
+  setup: (server: MiddlewareAdapterServer) => Promise<UniversaBridge>;
   teardown: () => Promise<void>;
-  getBridge: () => BridgeSocketBridge | null;
+  getBridge: () => UniversaBridge | null;
 }
 
 export type ViteAdapterServer = MiddlewareAdapterServer;
 export type ViteBridgeLifecycle = BridgeLifecycle;
 
 export function resolveAdapterOptions(
-  options: BridgeSocketAdapterOptions = {},
-): ResolvedBridgeSocketAdapterOptions {
+  options: UniversaAdapterOptions = {},
+): ResolvedUniversaAdapterOptions {
   return {
     ...options,
-    adapterName: options.adapterName ?? BRIDGESOCKET_DEV_ADAPTER_NAME,
-    bridgePathPrefix:
-      options.bridgePathPrefix ?? BRIDGESOCKET_BRIDGE_PATH_PREFIX,
-    rewriteSource: options.rewriteSource ?? BRIDGESOCKET_BRIDGE_REWRITE_SOURCE,
+    adapterName: options.adapterName ?? UNIVERSA_DEV_ADAPTER_NAME,
+    bridgePathPrefix: options.bridgePathPrefix ?? UNIVERSA_BRIDGE_PATH_PREFIX,
+    rewriteSource: options.rewriteSource ?? UNIVERSA_BRIDGE_REWRITE_SOURCE,
     nextBridgeGlobalKey: options.nextBridgeGlobalKey,
     overlayModule: options.overlayModule,
   };
 }
 
 function toBridgeOptions(
-  options: BridgeSocketAdapterOptions,
-): BridgeSocketBridgeOptions {
+  options: UniversaAdapterOptions,
+): UniversaBridgeOptions {
   const {
     adapterName: _adapterName,
     rewriteSource: _rewriteSource,
@@ -88,26 +86,26 @@ function toBridgeOptions(
 
 export async function attachBridgeToServer(
   server: MiddlewareAdapterServer,
-  options: BridgeSocketAdapterOptions,
-): Promise<BridgeSocketBridge> {
-  const bridge = await createBridgeSocketBridge(toBridgeOptions(options));
+  options: UniversaAdapterOptions,
+): Promise<UniversaBridge> {
+  const bridge = await createUniversaBridge(toBridgeOptions(options));
   await bridge.attach(server);
   return bridge;
 }
 
 export function attachBridgeToViteServer(
   server: ViteAdapterServer,
-  options: BridgeSocketAdapterOptions,
-): Promise<BridgeSocketBridge> {
+  options: UniversaAdapterOptions,
+): Promise<UniversaBridge> {
   return attachBridgeToServer(server, options);
 }
 
 export function createBridgeLifecycle(
-  options: BridgeSocketAdapterOptions = {},
+  options: UniversaAdapterOptions = {},
 ): BridgeLifecycle {
   const resolvedOptions = resolveAdapterOptions(options);
-  let bridge: BridgeSocketBridge | null = null;
-  let setupPromise: Promise<BridgeSocketBridge> | null = null;
+  let bridge: UniversaBridge | null = null;
+  let setupPromise: Promise<UniversaBridge> | null = null;
   let attachedServers = new WeakSet<MiddlewareAdapterServer>();
 
   return {
@@ -123,9 +121,7 @@ export function createBridgeLifecycle(
         }
 
         if (!bridge) {
-          bridge = await createBridgeSocketBridge(
-            toBridgeOptions(resolvedOptions),
-          );
+          bridge = await createUniversaBridge(toBridgeOptions(resolvedOptions));
         }
 
         if (!attachedServers.has(server)) {
@@ -167,23 +163,23 @@ export function createBridgeLifecycle(
 }
 
 export function createViteBridgeLifecycle(
-  options: BridgeSocketAdapterOptions = {},
+  options: UniversaAdapterOptions = {},
 ): ViteBridgeLifecycle {
   return createBridgeLifecycle(options);
 }
 
 export function ensureStandaloneBridgeSingleton(
-  options: BridgeSocketAdapterOptions,
+  options: UniversaAdapterOptions,
 ): Promise<StandaloneBridgeServer> {
   const resolvedOptions = resolveAdapterOptions(options);
   const bridgeGlobal = globalThis as typeof globalThis & {
     [key: string]: Promise<StandaloneBridgeServer> | undefined;
   };
   const globalKey =
-    resolvedOptions.nextBridgeGlobalKey ?? BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY;
+    resolvedOptions.nextBridgeGlobalKey ?? UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY;
 
   if (!bridgeGlobal[globalKey]) {
-    const startupPromise = startStandaloneBridgeSocketBridgeServer(
+    const startupPromise = startStandaloneUniversaBridgeServer(
       toBridgeOptions(resolvedOptions),
     );
     const guardedPromise = startupPromise.catch((error) => {
@@ -197,15 +193,15 @@ export function ensureStandaloneBridgeSingleton(
 
   const bridge = bridgeGlobal[globalKey];
   if (!bridge) {
-    throw new Error("Failed to initialize standalone bridgesocket bridge");
+    throw new Error("Failed to initialize standalone universa-kit bridge");
   }
 
   return bridge;
 }
 
 export function normalizeRewrites(
-  rewrites: BridgeSocketRewriteSpec | undefined,
-): BridgeSocketNormalizedRewrites {
+  rewrites: UniversaRewriteSpec | undefined,
+): UniversaNormalizedRewrites {
   if (!rewrites) {
     return { beforeFiles: [], afterFiles: [], fallback: [] };
   }
@@ -223,8 +219,8 @@ export function normalizeRewrites(
 
 export function createBridgeRewriteRoute(
   baseUrl: string,
-  rewriteSource = BRIDGESOCKET_BRIDGE_REWRITE_SOURCE,
-): BridgeSocketRewriteRule {
+  rewriteSource = UNIVERSA_BRIDGE_REWRITE_SOURCE,
+): UniversaRewriteRule {
   return {
     source: rewriteSource,
     destination: `${baseUrl}${rewriteSource}`,

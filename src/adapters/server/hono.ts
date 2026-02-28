@@ -1,20 +1,20 @@
 import type { MiddlewareAdapterServer } from "../shared/adapter-utils.js";
 import {
   type NodeBridgeHandle,
-  type NodeBridgeSocketOptions,
-  attachBridgeSocketToNodeServer,
+  type NodeUniversaOptions,
+  attachUniversaToNodeServer,
   createNodeBridgeLifecycle,
 } from "./node.js";
 
 export type HonoNodeServer = MiddlewareAdapterServer;
-export type HonoBridgeSocketOptions = NodeBridgeSocketOptions;
+export type HonoUniversaOptions = NodeUniversaOptions;
 export type HonoBridgeHandle = NodeBridgeHandle;
 
 export const createHonoBridgeLifecycle = createNodeBridgeLifecycle;
 
-export function attachBridgeSocketToHonoNodeServer(
+export function attachUniversaToHonoNodeServer(
   server: HonoNodeServer,
-  options: HonoBridgeSocketOptions = {},
+  options: HonoUniversaOptions = {},
 ): Promise<HonoBridgeHandle> {
-  return attachBridgeSocketToNodeServer(server, options);
+  return attachUniversaToNodeServer(server, options);
 }

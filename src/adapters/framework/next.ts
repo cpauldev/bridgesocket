@@ -1,8 +1,8 @@
 import type { StandaloneBridgeServer } from "../../bridge/standalone.js";
 import {
-  BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY,
-  type BridgeSocketAdapterOptions,
-  type BridgeSocketRewriteSpec,
+  UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY,
+  type UniversaAdapterOptions,
+  type UniversaRewriteSpec,
   createBridgeRewriteRoute,
   ensureStandaloneBridgeSingleton,
   normalizeRewrites,
@@ -11,9 +11,9 @@ import {
 
 type MaybePromise<T> = T | Promise<T>;
 
-export type BridgeSocketNextOptions = BridgeSocketAdapterOptions;
+export type UniversaNextOptions = UniversaAdapterOptions;
 
-const NEXT_BRIDGE_GLOBAL_KEY_PREFIX = `${BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY}:next`;
+const NEXT_BRIDGE_GLOBAL_KEY_PREFIX = `${UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY}:next`;
 let nextBridgeInstanceCounter = 0;
 
 function createDefaultNextBridgeGlobalKey(): string {
@@ -22,7 +22,7 @@ function createDefaultNextBridgeGlobalKey(): string {
 }
 
 function ensureBridge(
-  options: BridgeSocketNextOptions,
+  options: UniversaNextOptions,
 ): Promise<StandaloneBridgeServer> {
   return ensureStandaloneBridgeSingleton(options);
 }
@@ -56,9 +56,9 @@ function prependOverlayToEntries(
   return entries;
 }
 
-export function withBridgeSocketNext<T extends object>(
+export function withUniversaNext<T extends object>(
   nextConfig: T,
-  options: BridgeSocketNextOptions = {},
+  options: UniversaNextOptions = {},
 ): T {
   const isDev = process.env.NODE_ENV !== "production";
   if (!isDev) {
@@ -70,7 +70,7 @@ export function withBridgeSocketNext<T extends object>(
     options.nextBridgeGlobalKey ?? createDefaultNextBridgeGlobalKey();
   const bridgeOptions = { ...resolvedOptions, nextBridgeGlobalKey };
   const next = { ...nextConfig } as T & {
-    rewrites?: () => MaybePromise<BridgeSocketRewriteSpec>;
+    rewrites?: () => MaybePromise<UniversaRewriteSpec>;
     webpack?: (config: WebpackConfig, ctx: WebpackCtx) => WebpackConfig;
   };
   const originalRewrites = next.rewrites;

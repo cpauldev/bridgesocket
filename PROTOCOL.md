@@ -1,6 +1,6 @@
-# BridgeSocket Bridge Protocol (v1)
+# Universa Bridge Protocol (v1)
 
-This document is the normative source of truth for the BridgeSocket bridge protocol (v1).
+This document is the normative source of truth for the Universa bridge protocol (v1).
 
 ## Document Meta
 
@@ -13,7 +13,7 @@ This document is the normative source of truth for the BridgeSocket bridge proto
 
 - Protocol version: `1`
 - Bridge state field: `protocolVersion: "1"`
-- WebSocket subprotocol: `bridgesocket.v1+json`
+- WebSocket subprotocol: `universa.v1+json`
 
 Backward-incompatible protocol changes must increment this version.
 Adding or updating adapter surfaces (framework, server, or build-tool) alone does not change protocol versioning.
@@ -21,7 +21,7 @@ Adapter API naming changes also do not change protocol versioning as long as rou
 
 ## Route Prefix
 
-Default bridge prefix: `/__bridgesocket`
+Default bridge prefix: `/__universa`
 
 All routes below are defined relative to that prefix.
 
@@ -41,14 +41,14 @@ Route matching is pathname-based and query-safe.
 
 Example:
 
-- `GET /__bridgesocket/state?source=ui` is handled as `GET /state`.
+- `GET /__universa/state?source=ui` is handled as `GET /state`.
 
 ## State Contract
 
-`GET /state` returns `BridgeSocketBridgeState`.
+`GET /state` returns `UniversaBridgeState`.
 
 ```ts
-interface BridgeSocketBridgeState {
+interface UniversaBridgeState {
   protocolVersion: "1";
   transportState:
     | "disconnected"
@@ -56,8 +56,8 @@ interface BridgeSocketBridgeState {
     | "runtime_starting"
     | "connected"
     | "degraded";
-  runtime: BridgeSocketRuntimeStatus;
-  capabilities: BridgeSocketBridgeCapabilities;
+  runtime: UniversaRuntimeStatus;
+  capabilities: UniversaBridgeCapabilities;
 }
 ```
 
@@ -79,7 +79,7 @@ Endpoint: `WS /events`
 
 Subprotocol behavior:
 
-- If `Sec-WebSocket-Protocol` is supplied, it must include `bridgesocket.v1+json`.
+- If `Sec-WebSocket-Protocol` is supplied, it must include `universa.v1+json`.
 - Unsupported offered protocol list is rejected with `426`.
 
 Event union:

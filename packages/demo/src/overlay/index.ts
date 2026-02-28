@@ -119,10 +119,7 @@ export { DemoOverlay };
 export { createDemoApi } from "./api.js";
 export type { DemoApi } from "./api.js";
 export type { OverlayMountOptions };
-export type {
-  BridgeSocketBridgeState,
-  BridgeSocketRuntimeStatus,
-} from "./types.js";
+export type { UniversaBridgeState, UniversaRuntimeStatus } from "./types.js";
 
 // Auto-mount when imported as the adapter-injected overlay entry.
 if (isBrowserRuntime() && shouldMountOverlay()) {

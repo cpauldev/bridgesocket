@@ -1,14 +1,14 @@
 import {
-  type BridgeSocketAdapterOptions,
   type MiddlewareAdapterServer,
+  type UniversaAdapterOptions,
   createBridgeLifecycle,
   resolveAdapterOptions,
 } from "../shared/adapter-utils.js";
 
-export type AstroBridgeSocketOptions = BridgeSocketAdapterOptions;
+export type AstroUniversaOptions = UniversaAdapterOptions;
 
-export function createBridgeSocketAstroIntegration(
-  options: AstroBridgeSocketOptions = {},
+export function createUniversaAstroIntegration(
+  options: AstroUniversaOptions = {},
 ) {
   const resolvedOptions = resolveAdapterOptions(options);
   const lifecycle = createBridgeLifecycle(resolvedOptions);

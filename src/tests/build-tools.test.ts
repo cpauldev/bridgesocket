@@ -1,13 +1,13 @@
 import { describe, expect, it } from "bun:test";
 
-import { withBridgeSocketRsbuild } from "../adapters/build/rsbuild.js";
-import { withBridgeSocketRspack } from "../adapters/build/rspack.js";
+import { withUniversaRsbuild } from "../adapters/build/rsbuild.js";
+import { withUniversaRspack } from "../adapters/build/rspack.js";
 import { createSetupMiddlewaresDevServerFixture } from "./utils/adapter-server-fixtures.js";
 
 describe("build tool adapters", () => {
-  it("withBridgeSocketRsbuild wires setupMiddlewares", async () => {
+  it("withUniversaRsbuild wires setupMiddlewares", async () => {
     const fixture = createSetupMiddlewaresDevServerFixture();
-    const wrapped = withBridgeSocketRsbuild(
+    const wrapped = withUniversaRsbuild(
       {
         setupMiddlewares: (middlewares: string[]) => [
           ...middlewares,
@@ -31,9 +31,9 @@ describe("build tool adapters", () => {
     fixture.emit("close");
   });
 
-  it("withBridgeSocketRspack wires setupMiddlewares", async () => {
+  it("withUniversaRspack wires setupMiddlewares", async () => {
     const fixture = createSetupMiddlewaresDevServerFixture();
-    const wrapped = withBridgeSocketRspack(
+    const wrapped = withUniversaRspack(
       {
         setupMiddlewares: (middlewares: string[]) => [...middlewares, "rspack"],
       },

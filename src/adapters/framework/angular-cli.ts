@@ -1,12 +1,11 @@
 import type { StandaloneBridgeServer } from "../../bridge/standalone.js";
 import {
-  type BridgeSocketAdapterOptions,
+  type UniversaAdapterOptions,
   ensureStandaloneBridgeSingleton,
   resolveAdapterOptions,
 } from "../shared/adapter-utils.js";
 
-const ANGULAR_CLI_BRIDGE_GLOBAL_KEY_PREFIX =
-  "__BRIDGESOCKET_ANGULAR_CLI_BRIDGE__";
+const ANGULAR_CLI_BRIDGE_GLOBAL_KEY_PREFIX = "__UNIVERSA_ANGULAR_CLI_BRIDGE__";
 let angularCliBridgeInstanceCounter = 0;
 
 function createDefaultAngularCliBridgeGlobalKey(): string {
@@ -37,18 +36,18 @@ export interface AngularCliProxyTarget {
   logLevel: "warn";
 }
 
-export type AngularCliBridgeSocketProxyConfig = Record<
+export type AngularCliUniversaProxyConfig = Record<
   string,
   AngularCliProxyTarget
 >;
 
-export interface AngularCliBridgeSocketOptions extends BridgeSocketAdapterOptions {
+export interface AngularCliUniversaOptions extends UniversaAdapterOptions {
   angularCliBridgeGlobalKey?: string;
   proxyContext?: string;
 }
 
-export async function startBridgeSocketAngularCliBridge(
-  options: AngularCliBridgeSocketOptions = {},
+export async function startUniversaAngularCliBridge(
+  options: AngularCliUniversaOptions = {},
 ): Promise<StandaloneBridgeServer> {
   const { angularCliBridgeGlobalKey, ...adapterOptions } = options;
   const resolvedOptions = resolveAdapterOptions(adapterOptions);
@@ -61,12 +60,12 @@ export async function startBridgeSocketAngularCliBridge(
   });
 }
 
-export async function createBridgeSocketAngularCliProxyConfig(
-  options: AngularCliBridgeSocketOptions = {},
-): Promise<AngularCliBridgeSocketProxyConfig> {
-  const bridge = await startBridgeSocketAngularCliBridge(options);
+export async function createUniversaAngularCliProxyConfig(
+  options: AngularCliUniversaOptions = {},
+): Promise<AngularCliUniversaProxyConfig> {
+  const bridge = await startUniversaAngularCliBridge(options);
   const proxyContext = normalizeProxyContext(
-    options.proxyContext ?? options.bridgePathPrefix ?? "/__bridgesocket",
+    options.proxyContext ?? options.bridgePathPrefix ?? "/__universa",
   );
   const proxyTarget = createProxyTarget(bridge.baseUrl);
 
@@ -76,12 +75,12 @@ export async function createBridgeSocketAngularCliProxyConfig(
   };
 }
 
-export async function withBridgeSocketAngularCliProxyConfig(
-  existingProxyConfig: AngularCliBridgeSocketProxyConfig = {},
-  options: AngularCliBridgeSocketOptions = {},
-): Promise<AngularCliBridgeSocketProxyConfig> {
+export async function withUniversaAngularCliProxyConfig(
+  existingProxyConfig: AngularCliUniversaProxyConfig = {},
+  options: AngularCliUniversaOptions = {},
+): Promise<AngularCliUniversaProxyConfig> {
   return {
     ...existingProxyConfig,
-    ...(await createBridgeSocketAngularCliProxyConfig(options)),
+    ...(await createUniversaAngularCliProxyConfig(options)),
   };
 }

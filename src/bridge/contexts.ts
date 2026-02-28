@@ -1,7 +1,4 @@
-import type {
-  BridgeSocketBridgeState,
-  BridgeSocketRuntimeStatus,
-} from "../types.js";
+import type { UniversaBridgeState, UniversaRuntimeStatus } from "../types.js";
 import type { RuntimeProxyContext } from "./proxy.js";
 import type { RuntimeControlContext } from "./runtime-control.js";
 
@@ -9,12 +6,12 @@ interface BridgeContextsOptions {
   shouldAutoStartRuntime: () => boolean;
   hasRuntimeControl: () => boolean;
   fallbackCommand: string;
-  getState: () => BridgeSocketBridgeState;
-  getRuntimeStatus: () => BridgeSocketRuntimeStatus;
-  startRuntime: () => Promise<BridgeSocketRuntimeStatus>;
-  restartRuntime: () => Promise<BridgeSocketRuntimeStatus>;
-  stopRuntime: () => Promise<BridgeSocketRuntimeStatus>;
-  ensureRuntimeStarted: () => Promise<BridgeSocketRuntimeStatus>;
+  getState: () => UniversaBridgeState;
+  getRuntimeStatus: () => UniversaRuntimeStatus;
+  startRuntime: () => Promise<UniversaRuntimeStatus>;
+  restartRuntime: () => Promise<UniversaRuntimeStatus>;
+  stopRuntime: () => Promise<UniversaRuntimeStatus>;
+  ensureRuntimeStarted: () => Promise<UniversaRuntimeStatus>;
   getRuntimeUrl: () => string | null;
   enableAutoStartRuntime: () => void;
   disableAutoStartRuntime: () => void;

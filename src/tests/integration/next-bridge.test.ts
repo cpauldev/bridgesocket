@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
-import { withBridgeSocketNext } from "../../adapters/framework/next.js";
-import { BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY } from "../../adapters/shared/adapter-utils.js";
+import { withUniversaNext } from "../../adapters/framework/next.js";
+import { UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY } from "../../adapters/shared/adapter-utils.js";
 
 const originalNodeEnv = process.env.NODE_ENV;
-const testBridgeKey = `${BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY}:test-next-integration`;
+const testBridgeKey = `${UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY}:test-next-integration`;
 
 afterEach(async () => {
   process.env.NODE_ENV = originalNodeEnv;
@@ -25,7 +25,7 @@ afterEach(async () => {
 describe("next integration", () => {
   it("starts standalone bridge and rewrites to it", async () => {
     process.env.NODE_ENV = "development";
-    const wrapped = withBridgeSocketNext(
+    const wrapped = withUniversaNext(
       {
         rewrites: async () => [
           {
@@ -46,13 +46,13 @@ describe("next integration", () => {
       : rewrites;
     const route = normalized.beforeFiles[0];
 
-    expect(route?.source).toBe("/__bridgesocket/:path*");
+    expect(route?.source).toBe("/__universa/:path*");
     expect(route?.destination).toMatch(
-      /^http:\/\/127\.0\.0\.1:\d+\/__bridgesocket\/:path\*$/,
+      /^http:\/\/127\.0\.0\.1:\d+\/__universa\/:path\*$/,
     );
 
-    const baseUrl = route.destination.replace("/__bridgesocket/:path*", "");
-    const response = await fetch(`${baseUrl}/__bridgesocket/health`);
+    const baseUrl = route.destination.replace("/__universa/:path*", "");
+    const response = await fetch(`${baseUrl}/__universa/health`);
     expect(response.ok).toBe(true);
     const payload = (await response.json()) as { protocolVersion: string };
     expect(payload.protocolVersion).toBe("1");

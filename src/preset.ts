@@ -1,111 +1,108 @@
 import {
-  type RsbuildBridgeSocketOptions,
   type RsbuildConfig,
-  withBridgeSocketRsbuild,
+  type RsbuildUniversaOptions,
+  withUniversaRsbuild,
 } from "./adapters/build/rsbuild.js";
 import {
-  type RspackBridgeSocketOptions,
   type RspackConfig,
-  withBridgeSocketRspack,
+  type RspackUniversaOptions,
+  withUniversaRspack,
 } from "./adapters/build/rspack.js";
 import {
-  type WebpackBridgeSocketOptions,
   type WebpackDevServerConfig,
-  withBridgeSocketWebpackDevServer,
+  type WebpackUniversaOptions,
+  withUniversaWebpackDevServer,
 } from "./adapters/build/webpack.js";
 import {
-  type AngularCliBridgeSocketOptions,
-  type AngularCliBridgeSocketProxyConfig,
-  createBridgeSocketAngularCliProxyConfig,
-  startBridgeSocketAngularCliBridge,
-  withBridgeSocketAngularCliProxyConfig,
+  type AngularCliUniversaOptions,
+  type AngularCliUniversaProxyConfig,
+  createUniversaAngularCliProxyConfig,
+  startUniversaAngularCliBridge,
+  withUniversaAngularCliProxyConfig,
 } from "./adapters/framework/angular-cli.js";
 import {
-  type AstroBridgeSocketOptions,
-  createBridgeSocketAstroIntegration,
+  type AstroUniversaOptions,
+  createUniversaAstroIntegration,
 } from "./adapters/framework/astro.js";
 import {
-  type BridgeSocketNextOptions,
-  withBridgeSocketNext,
+  type UniversaNextOptions,
+  withUniversaNext,
 } from "./adapters/framework/next.js";
 import {
-  type BridgeSocketNuxtOptions,
-  createBridgeSocketNuxtModule,
+  type UniversaNuxtOptions,
+  createUniversaNuxtModule,
 } from "./adapters/framework/nuxt.js";
 import {
   type BunBridgeHandle,
-  type BunBridgeSocketOptions,
-  attachBridgeSocketToBunServe,
+  type BunUniversaOptions,
+  attachUniversaToBunServe,
 } from "./adapters/server/bun.js";
 import {
   type FastifyBridgeHandle,
-  type FastifyBridgeSocketOptions,
   type FastifyLikeInstance,
-  attachBridgeSocketToFastify,
+  type FastifyUniversaOptions,
+  attachUniversaToFastify,
 } from "./adapters/server/fastify.js";
 import {
   type HonoBridgeHandle,
-  type HonoBridgeSocketOptions,
   type HonoNodeServer,
-  attachBridgeSocketToHonoNodeServer,
+  type HonoUniversaOptions,
+  attachUniversaToHonoNodeServer,
 } from "./adapters/server/hono.js";
 import {
   type NodeBridgeHandle,
-  type NodeBridgeSocketOptions,
-  attachBridgeSocketToNodeServer,
+  type NodeUniversaOptions,
+  attachUniversaToNodeServer,
 } from "./adapters/server/node.js";
 import {
-  type BridgeSocketVitePluginOptions,
-  createBridgeSocketVitePlugin,
+  type UniversaVitePluginOptions,
+  createUniversaVitePlugin,
 } from "./adapters/shared/plugin.js";
 
-export type BridgeSocketToolPresetOptions = BridgeSocketVitePluginOptions;
+export type UniversaToolPresetOptions = UniversaVitePluginOptions;
 
-export interface BridgeSocketToolPreset {
+export interface UniversaToolPreset {
   vite: (
-    options?: BridgeSocketVitePluginOptions,
-  ) => ReturnType<typeof createBridgeSocketVitePlugin>;
-  next: <T extends object>(
-    nextConfig: T,
-    options?: BridgeSocketNextOptions,
-  ) => T;
+    options?: UniversaVitePluginOptions,
+  ) => ReturnType<typeof createUniversaVitePlugin>;
+  next: <T extends object>(nextConfig: T, options?: UniversaNextOptions) => T;
   nuxt: (
-    options?: BridgeSocketNuxtOptions,
-  ) => ReturnType<typeof createBridgeSocketNuxtModule>;
+    options?: UniversaNuxtOptions,
+  ) => ReturnType<typeof createUniversaNuxtModule>;
   astro: (
-    options?: AstroBridgeSocketOptions,
-  ) => ReturnType<typeof createBridgeSocketAstroIntegration>;
+    options?: AstroUniversaOptions,
+  ) => ReturnType<typeof createUniversaAstroIntegration>;
   angularCli: {
     startBridge: (
-      options?: AngularCliBridgeSocketOptions,
-    ) => ReturnType<typeof startBridgeSocketAngularCliBridge>;
+      options?: AngularCliUniversaOptions,
+    ) => ReturnType<typeof startUniversaAngularCliBridge>;
     createProxyConfig: (
-      options?: AngularCliBridgeSocketOptions,
-    ) => ReturnType<typeof createBridgeSocketAngularCliProxyConfig>;
+      options?: AngularCliUniversaOptions,
+    ) => ReturnType<typeof createUniversaAngularCliProxyConfig>;
     withProxyConfig: (
-      existingProxyConfig?: AngularCliBridgeSocketProxyConfig,
-      options?: AngularCliBridgeSocketOptions,
-    ) => ReturnType<typeof withBridgeSocketAngularCliProxyConfig>;
+      existingProxyConfig?: AngularCliUniversaProxyConfig,
+      options?: AngularCliUniversaOptions,
+    ) => ReturnType<typeof withUniversaAngularCliProxyConfig>;
   };
   bun: {
-    attach: (options?: BunBridgeSocketOptions) => Promise<BunBridgeHandle>;
+    attach: (options?: BunUniversaOptions) => Promise<BunBridgeHandle>;
   };
   node: {
     attach: (
-      server: Parameters<typeof attachBridgeSocketToNodeServer>[0],
-      options?: NodeBridgeSocketOptions,
+      server: Parameters<typeof attachUniversaToNodeServer>[0],
+      options?: NodeUniversaOptions,
     ) => Promise<NodeBridgeHandle>;
   };
   fastify: {
     attach: (
       fastify: FastifyLikeInstance,
-      options?: FastifyBridgeSocketOptions,
+      options?: FastifyUniversaOptions,
     ) => Promise<FastifyBridgeHandle>;
   };
   hono: {
     attach: (
       server: HonoNodeServer,
-      options?: HonoBridgeSocketOptions,
+      options?: HonoUniversaOptions,
     ) => Promise<HonoBridgeHandle>;
   };
   webpack: {
@@ -114,7 +111,7 @@ export interface BridgeSocketToolPreset {
       TConfig extends WebpackDevServerConfig<TMiddlewares>,
     >(
       config: TConfig,
-      options?: WebpackBridgeSocketOptions,
+      options?: WebpackUniversaOptions,
     ) => TConfig & WebpackDevServerConfig<TMiddlewares>;
   };
   rsbuild: {
@@ -123,7 +120,7 @@ export interface BridgeSocketToolPreset {
       TConfig extends RsbuildConfig<TMiddlewares>,
     >(
       config: TConfig,
-      options?: RsbuildBridgeSocketOptions,
+      options?: RsbuildUniversaOptions,
     ) => TConfig & RsbuildConfig<TMiddlewares>;
   };
   rspack: {
@@ -132,89 +129,78 @@ export interface BridgeSocketToolPreset {
       TConfig extends RspackConfig<TMiddlewares>,
     >(
       config: TConfig,
-      options?: RspackBridgeSocketOptions,
+      options?: RspackUniversaOptions,
     ) => TConfig & RspackConfig<TMiddlewares>;
   };
 }
 
 function mergeOptions<T extends object>(
-  baseOptions: BridgeSocketToolPresetOptions,
+  baseOptions: UniversaToolPresetOptions,
   options?: T,
-): BridgeSocketToolPresetOptions & T {
+): UniversaToolPresetOptions & T {
   return { ...baseOptions, ...(options ?? ({} as T)) };
 }
 
-export function createBridgeSocketToolPreset(
-  baseOptions: BridgeSocketToolPresetOptions = {},
-): BridgeSocketToolPreset {
+export function createUniversaToolPreset(
+  baseOptions: UniversaToolPresetOptions = {},
+): UniversaToolPreset {
   return {
     vite: (options = {}) =>
-      createBridgeSocketVitePlugin(mergeOptions(baseOptions, options)),
+      createUniversaVitePlugin(mergeOptions(baseOptions, options)),
     next<T extends object>(
       nextConfig: T,
-      options: BridgeSocketNextOptions = {},
+      options: UniversaNextOptions = {},
     ): T {
-      return withBridgeSocketNext(
-        nextConfig,
-        mergeOptions(baseOptions, options),
-      );
+      return withUniversaNext(nextConfig, mergeOptions(baseOptions, options));
     },
     nuxt: (options = {}) =>
-      createBridgeSocketNuxtModule(mergeOptions(baseOptions, options)),
+      createUniversaNuxtModule(mergeOptions(baseOptions, options)),
     astro: (options = {}) =>
-      createBridgeSocketAstroIntegration(mergeOptions(baseOptions, options)),
+      createUniversaAstroIntegration(mergeOptions(baseOptions, options)),
     angularCli: {
       startBridge: (options = {}) =>
-        startBridgeSocketAngularCliBridge(mergeOptions(baseOptions, options)),
+        startUniversaAngularCliBridge(mergeOptions(baseOptions, options)),
       createProxyConfig: (options = {}) =>
-        createBridgeSocketAngularCliProxyConfig(
-          mergeOptions(baseOptions, options),
-        ),
+        createUniversaAngularCliProxyConfig(mergeOptions(baseOptions, options)),
       withProxyConfig: (existingProxyConfig = {}, options = {}) =>
-        withBridgeSocketAngularCliProxyConfig(
+        withUniversaAngularCliProxyConfig(
           existingProxyConfig,
           mergeOptions(baseOptions, options),
         ),
     },
     bun: {
       attach: (options = {}) =>
-        attachBridgeSocketToBunServe(mergeOptions(baseOptions, options)),
+        attachUniversaToBunServe(mergeOptions(baseOptions, options)),
     },
     node: {
       attach: (server, options = {}) =>
-        attachBridgeSocketToNodeServer(
-          server,
-          mergeOptions(baseOptions, options),
-        ),
+        attachUniversaToNodeServer(server, mergeOptions(baseOptions, options)),
     },
     fastify: {
       attach: (fastify, options = {}) =>
-        attachBridgeSocketToFastify(
-          fastify,
-          mergeOptions(baseOptions, options),
-        ),
+        attachUniversaToFastify(fastify, mergeOptions(baseOptions, options)),
     },
     hono: {
       attach: (server, options = {}) =>
-        attachBridgeSocketToHonoNodeServer(
+        attachUniversaToHonoNodeServer(
           server,
           mergeOptions(baseOptions, options),
         ),
     },
     webpack: {
       withDevServer: (config, options = {}) =>
-        withBridgeSocketWebpackDevServer(
+        withUniversaWebpackDevServer(
           config,
           mergeOptions(baseOptions, options),
         ),
     },
     rsbuild: {
       withDevServer: (config, options = {}) =>
-        withBridgeSocketRsbuild(config, mergeOptions(baseOptions, options)),
+        withUniversaRsbuild(config, mergeOptions(baseOptions, options)),
     },
     rspack: {
       withDevServer: (config, options = {}) =>
-        withBridgeSocketRspack(config, mergeOptions(baseOptions, options)),
+        withUniversaRspack(config, mergeOptions(baseOptions, options)),
     },
   };
 }

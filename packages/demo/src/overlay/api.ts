@@ -1,7 +1,4 @@
-import type {
-  BridgeSocketBridgeState,
-  BridgeSocketRuntimeStatus,
-} from "bridgesocket";
+import type { UniversaBridgeState, UniversaRuntimeStatus } from "universa-kit";
 
 import { BRIDGE_BASE_PATH } from "./constants.js";
 import type {
@@ -10,11 +7,11 @@ import type {
   OverlayActionResult,
 } from "./types.js";
 
-const BRIDGESOCKET_WS_SUBPROTOCOL = "bridgesocket.v1+json";
+const UNIVERSA_WS_SUBPROTOCOL = "universa.v1+json";
 
 export interface DemoApi {
-  getBridgeState: () => Promise<BridgeSocketBridgeState>;
-  getRuntimeStatus: () => Promise<BridgeSocketRuntimeStatus>;
+  getBridgeState: () => Promise<UniversaBridgeState>;
+  getRuntimeStatus: () => Promise<UniversaRuntimeStatus>;
   startRuntime: () => Promise<OverlayActionResult>;
   restartRuntime: () => Promise<OverlayActionResult>;
   stopRuntime: () => Promise<OverlayActionResult>;
@@ -154,13 +151,13 @@ export function createDemoApi(baseUrl?: string): DemoApi {
 
   return {
     async getBridgeState() {
-      return request<BridgeSocketBridgeState>(
+      return request<UniversaBridgeState>(
         normalizedBaseUrl,
         toBridgeRoute("/state"),
       );
     },
     async getRuntimeStatus() {
-      return request<BridgeSocketRuntimeStatus>(
+      return request<UniversaRuntimeStatus>(
         normalizedBaseUrl,
         toBridgeRoute("/runtime/status"),
       );
@@ -213,7 +210,7 @@ export function createWebSocketBinding(
     resolveDevServerBaseUrl(baseUrl),
     `${BRIDGE_BASE_PATH}/events`,
   );
-  const ws = new WebSocket(wsUrl, [BRIDGESOCKET_WS_SUBPROTOCOL]);
+  const ws = new WebSocket(wsUrl, [UNIVERSA_WS_SUBPROTOCOL]);
 
   ws.addEventListener("open", () => handlers.onOpen?.());
   ws.addEventListener("close", () => handlers.onClose?.());

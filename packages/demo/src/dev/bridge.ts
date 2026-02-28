@@ -1,20 +1,20 @@
 import {
-  BridgeSocketBridge,
-  type BridgeSocketBridgeOptions,
   type StandaloneBridgeServer,
-  startStandaloneBridgeSocketBridgeServer,
-} from "bridgesocket";
-import { createBridgeSocketToolPreset } from "bridgesocket/preset";
+  UniversaBridge,
+  type UniversaBridgeOptions,
+  startStandaloneUniversaBridgeServer,
+} from "universa-kit";
+import { createUniversaToolPreset } from "universa-kit/preset";
 
 import {
   resolveDemoAdapterOptions,
   resolveDemoBridgeOptions,
 } from "./defaults.js";
 
-export type DemoBridgeOptions = BridgeSocketBridgeOptions;
+export type DemoBridgeOptions = UniversaBridgeOptions;
 export type { StandaloneBridgeServer };
 
-export class DemoBridge extends BridgeSocketBridge {
+export class DemoBridge extends UniversaBridge {
   constructor(options: DemoBridgeOptions = {}) {
     super(resolveDemoBridgeOptions(options));
   }
@@ -27,11 +27,9 @@ export function createDemoBridge(options: DemoBridgeOptions = {}): DemoBridge {
 export async function startStandaloneDemoBridgeServer(
   options: DemoBridgeOptions = {},
 ): Promise<StandaloneBridgeServer> {
-  return startStandaloneBridgeSocketBridgeServer(
-    resolveDemoBridgeOptions(options),
-  );
+  return startStandaloneUniversaBridgeServer(resolveDemoBridgeOptions(options));
 }
 
 export function createDemoPreset(options = {}) {
-  return createBridgeSocketToolPreset(resolveDemoAdapterOptions(options));
+  return createUniversaToolPreset(resolveDemoAdapterOptions(options));
 }

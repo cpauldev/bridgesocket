@@ -4,13 +4,13 @@ import { WebSocketServer } from "ws";
 
 import { RuntimeHelper } from "../runtime/runtime-helper.js";
 import type {
-  BridgeSocketBridgeCapabilities,
-  BridgeSocketBridgeInstance,
-  BridgeSocketBridgeState,
+  UniversaBridgeCapabilities,
+  UniversaBridgeInstance,
+  UniversaBridgeState,
 } from "../types.js";
 import {
-  BRIDGESOCKET_PROTOCOL_VERSION,
-  BRIDGESOCKET_WS_SUBPROTOCOL,
+  UNIVERSA_PROTOCOL_VERSION,
+  UNIVERSA_WS_SUBPROTOCOL,
 } from "./constants.js";
 import {
   createRuntimeControlContext,
@@ -20,8 +20,8 @@ import { writeBridgeError } from "./errors.js";
 import { BridgeEventBus } from "./events.js";
 import { writeJson } from "./http.js";
 import {
-  type BridgeSocketBridgeOptions,
   type ResolvedBridgeOptions,
+  type UniversaBridgeOptions,
   resolveBridgeOptions,
 } from "./options.js";
 import { proxyToRuntime } from "./proxy.js";
@@ -36,8 +36,8 @@ import { createCapabilities, toTransportState } from "./state.js";
 import { handleBridgeUpgrade } from "./ws.js";
 
 function normalizeBridgeInstance(
-  instance: BridgeSocketBridgeOptions["instance"],
-): BridgeSocketBridgeInstance | undefined {
+  instance: UniversaBridgeOptions["instance"],
+): UniversaBridgeInstance | undefined {
   if (!instance) return undefined;
 
   const id = instance.id.trim();
@@ -50,17 +50,17 @@ function normalizeBridgeInstance(
   };
 }
 
-export class BridgeSocketBridge {
+export class UniversaBridge {
   #options: ResolvedBridgeOptions;
   #helper: RuntimeHelper;
-  #capabilities: BridgeSocketBridgeCapabilities;
-  #instance: BridgeSocketBridgeInstance | undefined;
+  #capabilities: UniversaBridgeCapabilities;
+  #instance: UniversaBridgeInstance | undefined;
   #wss = new WebSocketServer({
     noServer: true,
     perMessageDeflate: false,
     handleProtocols: (protocols) => {
-      return protocols.has(BRIDGESOCKET_WS_SUBPROTOCOL)
-        ? BRIDGESOCKET_WS_SUBPROTOCOL
+      return protocols.has(UNIVERSA_WS_SUBPROTOCOL)
+        ? UNIVERSA_WS_SUBPROTOCOL
         : false;
     },
   });
@@ -68,7 +68,7 @@ export class BridgeSocketBridge {
   #closed = false;
   #autoStartEnabled = true;
 
-  constructor(options: BridgeSocketBridgeOptions = {}) {
+  constructor(options: UniversaBridgeOptions = {}) {
     this.#options = resolveBridgeOptions(options);
     this.#helper = new RuntimeHelper(this.#options);
     this.#instance = normalizeBridgeInstance(this.#options.instance);
@@ -94,10 +94,10 @@ export class BridgeSocketBridge {
     return this.#options.bridgePathPrefix;
   }
 
-  getState(): BridgeSocketBridgeState {
+  getState(): UniversaBridgeState {
     const runtime = this.#helper.getStatus();
     return {
-      protocolVersion: BRIDGESOCKET_PROTOCOL_VERSION,
+      protocolVersion: UNIVERSA_PROTOCOL_VERSION,
       transportState: toTransportState(runtime),
       runtime,
       capabilities: this.#capabilities,
@@ -212,7 +212,7 @@ export class BridgeSocketBridge {
       res,
       404,
       "route_not_found",
-      `Unknown bridgesocket bridge route: ${match.routeWithSearch}`,
+      `Unknown universa-kit bridge route: ${match.routeWithSearch}`,
       {
         details: {
           route: match.routeWithSearch,
@@ -260,9 +260,9 @@ export class BridgeSocketBridge {
     return createRuntimeProxyContext(this.getBridgeContextOptions());
   }
 }
-export async function createBridgeSocketBridge(
-  options: BridgeSocketBridgeOptions = {},
-): Promise<BridgeSocketBridge> {
-  return new BridgeSocketBridge(options);
+export async function createUniversaBridge(
+  options: UniversaBridgeOptions = {},
+): Promise<UniversaBridge> {
+  return new UniversaBridge(options);
 }
-export type { BridgeSocketBridgeOptions } from "./options.js";
+export type { UniversaBridgeOptions } from "./options.js";

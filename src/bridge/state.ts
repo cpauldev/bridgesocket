@@ -1,18 +1,18 @@
 import type {
-  BridgeSocketBridgeCapabilities,
-  BridgeSocketBridgeState,
-  BridgeSocketRuntimeStatus,
+  UniversaBridgeCapabilities,
+  UniversaBridgeState,
+  UniversaRuntimeStatus,
 } from "../types.js";
 import {
-  BRIDGESOCKET_PROTOCOL_VERSION,
-  BRIDGESOCKET_WS_SUBPROTOCOL,
+  UNIVERSA_PROTOCOL_VERSION,
+  UNIVERSA_WS_SUBPROTOCOL,
 } from "./constants.js";
 
 export function createCapabilities(
   fallbackCommand: string,
   hasRuntimeControl: boolean,
-  commandHost: BridgeSocketBridgeCapabilities["commandHost"],
-): BridgeSocketBridgeCapabilities {
+  commandHost: UniversaBridgeCapabilities["commandHost"],
+): UniversaBridgeCapabilities {
   return {
     commandHost,
     hasRuntimeControl,
@@ -20,14 +20,14 @@ export function createCapabilities(
     canRestartRuntime: hasRuntimeControl,
     canStopRuntime: hasRuntimeControl,
     fallbackCommand,
-    wsSubprotocol: BRIDGESOCKET_WS_SUBPROTOCOL,
-    supportedProtocolVersions: [BRIDGESOCKET_PROTOCOL_VERSION],
+    wsSubprotocol: UNIVERSA_WS_SUBPROTOCOL,
+    supportedProtocolVersions: [UNIVERSA_PROTOCOL_VERSION],
   };
 }
 
 export function toTransportState(
-  runtime: BridgeSocketRuntimeStatus,
-): BridgeSocketBridgeState["transportState"] {
+  runtime: UniversaRuntimeStatus,
+): UniversaBridgeState["transportState"] {
   switch (runtime.phase) {
     case "running":
       return "connected";

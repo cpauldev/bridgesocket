@@ -1,20 +1,18 @@
 import { isEventsUpgradePath } from "../../bridge/router.js";
 import {
-  type BridgeSocketAdapterOptions,
   type MiddlewareAdapterServer,
+  type UniversaAdapterOptions,
   appendPlugin,
   createBridgeLifecycle,
   resolveAdapterOptions,
 } from "../shared/adapter-utils.js";
 
-export type BridgeSocketNuxtOptions = BridgeSocketAdapterOptions;
+export type UniversaNuxtOptions = UniversaAdapterOptions;
 
-const OVERLAY_VIRTUAL_ID = "bridgesocket:overlay-init";
+const OVERLAY_VIRTUAL_ID = "universa-kit:overlay-init";
 const RESOLVED_OVERLAY_VIRTUAL_ID = `\0${OVERLAY_VIRTUAL_ID}`;
 
-export function createBridgeSocketNuxtModule(
-  options: BridgeSocketNuxtOptions = {},
-) {
+export function createUniversaNuxtModule(options: UniversaNuxtOptions = {}) {
   const resolvedOptions = resolveAdapterOptions(options);
   const overlayModule = resolvedOptions.overlayModule;
   const lifecycle = createBridgeLifecycle(resolvedOptions);
@@ -160,7 +158,7 @@ export function createBridgeSocketNuxtModule(
         if (
           isEventsUpgradePath(
             req.url || "/",
-            resolvedOptions.bridgePathPrefix ?? "/__bridgesocket",
+            resolvedOptions.bridgePathPrefix ?? "/__universa",
           )
         ) {
           const bridge = lifecycle.getBridge();

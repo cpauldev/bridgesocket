@@ -1,14 +1,14 @@
-# BridgeSocket Examples
+# Universa Examples
 
 ## Document Meta
 
-- Purpose: Explain how to set up and run the BridgeSocket framework examples.
-- Audience: Contributors and maintainers working on BridgeSocket internals.
+- Purpose: Explain how to set up and run the Universa framework examples.
+- Audience: Contributors and maintainers working on Universa internals.
 - Status: Active
 
 ## Overview
 
-The `examples/` directory contains nine framework examples that each demonstrate a working BridgeSocket integration with the `demo` overlay package. Each example starts its own dev server with the demo bridge mounted, so the overlay appears in the browser and connects to a local demo runtime.
+The `examples/` directory contains nine framework examples that each demonstrate a working Universa integration with the `demo` overlay package. Each example starts its own dev server with the demo bridge mounted, so the overlay appears in the browser and connects to a local demo runtime.
 
 | ID          | Framework  | Default port |
 | ----------- | ---------- | ------------ |
@@ -31,7 +31,7 @@ The runner assigns ports sequentially starting at `4600`. If one is already in u
 
 ## First-Time Setup
 
-Run the setup script once from the repository root. It installs workspace dependencies and builds the `bridgesocket` and `demo` packages that the examples depend on.
+Run the setup script once from the repository root. It installs workspace dependencies and builds the `universa-kit` and `demo` packages that the examples depend on.
 
 ```bash
 bun run examples:setup
@@ -40,7 +40,7 @@ bun run examples:setup
 This runs the following steps in order:
 
 1. `bun install` — installs all workspace dependencies
-2. `bun run build` — builds the `bridgesocket` package
+2. `bun run build` — builds the `universa-kit` package
 3. `bun run build` in `packages/demo` — builds the `demo` overlay package
 
 After setup completes, no further build steps are needed to run examples unless source files change (see [Rebuilding after source changes](#rebuilding-after-source-changes)).
@@ -92,10 +92,10 @@ Checks each example's health and bridge state endpoints (`/__demo/health` and `/
 
 ## Rebuilding after source changes
 
-When `src/` (BridgeSocket core) or `packages/demo/src/` (demo overlay) changes, rebuild before running examples:
+When `src/` (Universa core) or `packages/demo/src/` (demo overlay) changes, rebuild before running examples:
 
 ```bash
-# Rebuild bridgesocket
+# Rebuild universa-kit
 bun run build
 
 # Rebuild demo overlay

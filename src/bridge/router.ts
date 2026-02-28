@@ -26,7 +26,7 @@ export function matchBridgeRoute(
   req: IncomingMessage,
   bridgePathPrefix: string,
 ): BridgeRouteMatch | null {
-  const parsedRequestUrl = new URL(req.url || "/", "http://bridgesocket.local");
+  const parsedRequestUrl = new URL(req.url || "/", "http://universa-kit.local");
   if (!isBridgePath(parsedRequestUrl.pathname, bridgePathPrefix)) {
     return null;
   }
@@ -48,7 +48,7 @@ export function isEventsUpgradePath(
   bridgePathPrefix: string,
 ): boolean {
   const eventsPath = `${bridgePathPrefix}${EVENTS_PATH}`;
-  const parsed = new URL(requestUrl, "http://bridgesocket.local");
+  const parsed = new URL(requestUrl, "http://universa-kit.local");
   return parsed.pathname === eventsPath;
 }
 

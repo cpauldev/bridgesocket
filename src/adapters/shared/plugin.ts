@@ -1,16 +1,16 @@
 import {
-  type BridgeSocketAdapterOptions,
+  type UniversaAdapterOptions,
   type ViteAdapterServer,
   createBridgeLifecycle,
   resolveAdapterOptions,
 } from "./adapter-utils.js";
 
-const OVERLAY_VIRTUAL_ID = "bridgesocket:overlay-init";
+const OVERLAY_VIRTUAL_ID = "universa-kit:overlay-init";
 const RESOLVED_OVERLAY_VIRTUAL_ID = `\0${OVERLAY_VIRTUAL_ID}`;
 
-export type BridgeSocketVitePluginOptions = BridgeSocketAdapterOptions;
-export function createBridgeSocketVitePlugin(
-  options: BridgeSocketVitePluginOptions = {},
+export type UniversaVitePluginOptions = UniversaAdapterOptions;
+export function createUniversaVitePlugin(
+  options: UniversaVitePluginOptions = {},
 ) {
   const resolvedOptions = resolveAdapterOptions(options);
   const lifecycle = createBridgeLifecycle(resolvedOptions);

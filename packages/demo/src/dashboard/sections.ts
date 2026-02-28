@@ -1,4 +1,4 @@
-import type { BridgeSocketBridgeState } from "bridgesocket";
+import type { UniversaBridgeState } from "universa-kit";
 
 import {
   formatBytes,
@@ -46,8 +46,8 @@ function areStringArraysEqual(
 }
 
 function areBridgeStatesEqual(
-  a: BridgeSocketBridgeState | null,
-  b: BridgeSocketBridgeState | null,
+  a: UniversaBridgeState | null,
+  b: UniversaBridgeState | null,
 ): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -108,7 +108,7 @@ function normalizeErrorMessage(error: unknown): string {
 
 function resolveBridgeTransportState(
   currentState: DashboardTransportState,
-  bridgeState: BridgeSocketBridgeState,
+  bridgeState: UniversaBridgeState,
 ): DashboardTransportState {
   if (
     currentState === "runtime_starting" &&
@@ -200,7 +200,7 @@ export function createInitialDashboardLiveState(): DashboardLiveState {
 
 export function resolveDashboardLiveStateOnSuccess(
   prev: DashboardLiveState,
-  bridgeState: BridgeSocketBridgeState,
+  bridgeState: UniversaBridgeState,
 ): DashboardLiveState {
   const now = Date.now();
   const nextTransportState = resolveBridgeTransportState(

@@ -1,21 +1,21 @@
-export type BridgeSocketRuntimePhase =
+export type UniversaRuntimePhase =
   | "stopped"
   | "starting"
   | "running"
   | "stopping"
   | "error";
 
-export type BridgeSocketProtocolVersion = "1";
+export type UniversaProtocolVersion = "1";
 
-export interface BridgeSocketRuntimeStatus {
-  phase: BridgeSocketRuntimePhase;
+export interface UniversaRuntimeStatus {
+  phase: UniversaRuntimePhase;
   url: string | null;
   pid: number | null;
   startedAt: number | null;
   lastError: string | null;
 }
 
-export type BridgeSocketErrorCode =
+export type UniversaErrorCode =
   | "invalid_request"
   | "route_not_found"
   | "runtime_start_failed"
@@ -24,20 +24,20 @@ export type BridgeSocketErrorCode =
   | "bridge_proxy_failed"
   | "internal_error";
 
-export interface BridgeSocketErrorPayload {
-  code: BridgeSocketErrorCode;
+export interface UniversaErrorPayload {
+  code: UniversaErrorCode;
   message: string;
   retryable: boolean;
   details?: Record<string, unknown>;
 }
 
-export interface BridgeSocketErrorResponse {
+export interface UniversaErrorResponse {
   success: false;
   message: string;
-  error: BridgeSocketErrorPayload;
+  error: UniversaErrorPayload;
 }
 
-export interface BridgeSocketBridgeCapabilities {
+export interface UniversaBridgeCapabilities {
   commandHost: "host" | "helper" | "hybrid";
   hasRuntimeControl: boolean;
   canStartRuntime: boolean;
@@ -45,29 +45,29 @@ export interface BridgeSocketBridgeCapabilities {
   canStopRuntime: boolean;
   fallbackCommand: string;
   wsSubprotocol: string;
-  supportedProtocolVersions: BridgeSocketProtocolVersion[];
+  supportedProtocolVersions: UniversaProtocolVersion[];
 }
 
-export interface BridgeSocketBridgeInstance {
+export interface UniversaBridgeInstance {
   id: string;
   label?: string;
 }
 
-export interface BridgeSocketBridgeState {
-  protocolVersion: BridgeSocketProtocolVersion;
+export interface UniversaBridgeState {
+  protocolVersion: UniversaProtocolVersion;
   transportState:
     | "disconnected"
     | "bridge_detecting"
     | "runtime_starting"
     | "connected"
     | "degraded";
-  runtime: BridgeSocketRuntimeStatus;
-  capabilities: BridgeSocketBridgeCapabilities;
-  instance?: BridgeSocketBridgeInstance;
+  runtime: UniversaRuntimeStatus;
+  capabilities: UniversaBridgeCapabilities;
+  instance?: UniversaBridgeInstance;
   error?: string;
 }
 
-export interface BridgeSocketCommandRequest {
+export interface UniversaCommandRequest {
   command:
     | "sync"
     | "login"
@@ -80,25 +80,25 @@ export interface BridgeSocketCommandRequest {
   payload?: Record<string, unknown>;
 }
 
-export interface BridgeSocketCommandResult {
+export interface UniversaCommandResult {
   success: boolean;
   message?: string;
   operationId?: string;
   data?: Record<string, unknown>;
 }
 
-interface BridgeSocketBridgeEventBase {
-  protocolVersion: BridgeSocketProtocolVersion;
+interface UniversaBridgeEventBase {
+  protocolVersion: UniversaProtocolVersion;
   eventId: number;
   timestamp: number;
 }
 
-export type BridgeSocketBridgeEvent =
-  | (BridgeSocketBridgeEventBase & {
+export type UniversaBridgeEvent =
+  | (UniversaBridgeEventBase & {
       type: "runtime-status";
-      status: BridgeSocketRuntimeStatus;
+      status: UniversaRuntimeStatus;
     })
-  | (BridgeSocketBridgeEventBase & {
+  | (UniversaBridgeEventBase & {
       type: "runtime-error";
       error: string;
     });

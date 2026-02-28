@@ -1,10 +1,7 @@
-import type {
-  BridgeSocketBridgeOptions,
-  RuntimeHelperOptions,
-} from "bridgesocket";
-import type { BridgeSocketAdapterOptions } from "bridgesocket/internal";
 import { existsSync } from "fs";
 import { basename, dirname, join } from "path";
+import type { RuntimeHelperOptions, UniversaBridgeOptions } from "universa-kit";
+import type { UniversaAdapterOptions } from "universa-kit/internal";
 import { fileURLToPath } from "url";
 
 export const DEMO_ADAPTER_NAME = "demo-bridge";
@@ -21,7 +18,7 @@ type DemoInstanceOptions = {
   label?: string;
 };
 
-type DemoBridgeOptions = BridgeSocketBridgeOptions & {
+type DemoBridgeOptions = UniversaBridgeOptions & {
   instance?: DemoInstanceOptions;
   proxyRuntimeWebSocket?: boolean;
 };
@@ -96,8 +93,8 @@ export function resolveDemoRuntimeOptions(
 }
 
 export function resolveDemoBridgeOptions(
-  options: BridgeSocketBridgeOptions = {},
-): BridgeSocketBridgeOptions {
+  options: UniversaBridgeOptions = {},
+): UniversaBridgeOptions {
   const bridgeOptions = options as DemoBridgeOptions;
   const instance = resolveDemoInstance(bridgeOptions);
 
@@ -107,12 +104,12 @@ export function resolveDemoBridgeOptions(
     fallbackCommand: options.fallbackCommand ?? DEMO_RUNTIME_FALLBACK_COMMAND,
     proxyRuntimeWebSocket: bridgeOptions.proxyRuntimeWebSocket ?? false,
     instance,
-  } as BridgeSocketBridgeOptions;
+  } as UniversaBridgeOptions;
 }
 
 export function resolveDemoAdapterOptions(
-  options: BridgeSocketAdapterOptions = {},
-): BridgeSocketAdapterOptions {
+  options: UniversaAdapterOptions = {},
+): UniversaAdapterOptions {
   return {
     ...resolveDemoBridgeOptions(options),
     adapterName: options.adapterName ?? DEMO_ADAPTER_NAME,

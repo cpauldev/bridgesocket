@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
 import {
-  createBridgeSocketAngularCliProxyConfig,
-  withBridgeSocketAngularCliProxyConfig,
+  createUniversaAngularCliProxyConfig,
+  withUniversaAngularCliProxyConfig,
 } from "../adapters/framework/angular-cli.js";
-import { createBridgeSocketAstroIntegration } from "../adapters/framework/astro.js";
-import { withBridgeSocketNext } from "../adapters/framework/next.js";
-import { createBridgeSocketNuxtModule } from "../adapters/framework/nuxt.js";
-import { BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY } from "../adapters/shared/adapter-utils.js";
-import { createBridgeSocketVitePlugin } from "../adapters/shared/plugin.js";
+import { createUniversaAstroIntegration } from "../adapters/framework/astro.js";
+import { withUniversaNext } from "../adapters/framework/next.js";
+import { createUniversaNuxtModule } from "../adapters/framework/nuxt.js";
+import { UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY } from "../adapters/shared/adapter-utils.js";
+import { createUniversaVitePlugin } from "../adapters/shared/plugin.js";
 import { createMiddlewareAdapterServerFixture } from "./utils/adapter-server-fixtures.js";
 
 const originalNodeEnv = process.env.NODE_ENV;
@@ -20,7 +20,7 @@ async function clearBridgeGlobals(): Promise<void> {
   const cleanupTasks: Promise<void>[] = [];
 
   for (const key of Object.keys(bridgeGlobal)) {
-    if (key.startsWith(BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY)) {
+    if (key.startsWith(UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY)) {
       const bridgePromise = bridgeGlobal[key] as
         | Promise<{ close?: () => Promise<void> }>
         | undefined;
@@ -48,10 +48,10 @@ afterEach(async () => {
   await clearBridgeGlobals();
 });
 
-describe("bridgesocket adapters", () => {
-  it("withBridgeSocketNext injects bridge rewrites first", async () => {
+describe("universa-kit adapters", () => {
+  it("withUniversaNext injects bridge rewrites first", async () => {
     process.env.NODE_ENV = "development";
-    const testBridgeKey = `${BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY}:test-adapters`;
+    const testBridgeKey = `${UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY}:test-adapters`;
     const bridgeGlobal = globalThis as typeof globalThis & {
       [key: string]: unknown;
     };
@@ -62,7 +62,7 @@ describe("bridgesocket adapters", () => {
       close: async () => undefined,
     });
 
-    const config = withBridgeSocketNext(
+    const config = withUniversaNext(
       {
         rewrites: async () => [
           {
@@ -87,8 +87,8 @@ describe("bridgesocket adapters", () => {
       : rewrites;
 
     expect(normalized.beforeFiles[0]).toEqual({
-      source: "/__bridgesocket/:path*",
-      destination: "http://127.0.0.1:41234/__bridgesocket/:path*",
+      source: "/__universa/:path*",
+      destination: "http://127.0.0.1:41234/__universa/:path*",
     });
     expect(normalized.beforeFiles[1]).toEqual({
       source: "/docs/:path*",
@@ -98,21 +98,21 @@ describe("bridgesocket adapters", () => {
     delete bridgeGlobal[testBridgeKey];
   });
 
-  it("withBridgeSocketNext is a no-op in production", () => {
+  it("withUniversaNext is a no-op in production", () => {
     process.env.NODE_ENV = "production";
     const config = { trailingSlash: true };
-    const wrapped = withBridgeSocketNext(config);
+    const wrapped = withUniversaNext(config);
     expect(wrapped).toBe(config);
   });
 
-  it("withBridgeSocketNext creates isolated bridge instances by default", async () => {
+  it("withUniversaNext creates isolated bridge instances by default", async () => {
     process.env.NODE_ENV = "development";
     const passthroughRule = { source: "/noop/:path*", destination: "/noop" };
 
-    const first = withBridgeSocketNext({
+    const first = withUniversaNext({
       rewrites: async () => [passthroughRule],
     });
-    const second = withBridgeSocketNext({
+    const second = withUniversaNext({
       rewrites: async () => [passthroughRule],
     });
 
@@ -137,8 +137,8 @@ describe("bridgesocket adapters", () => {
     expect(firstDestination).not.toBe(secondDestination);
   });
 
-  it("createBridgeSocketNuxtModule injects plugin hook only in dev", () => {
-    const module = createBridgeSocketNuxtModule();
+  it("createUniversaNuxtModule injects plugin hook only in dev", () => {
+    const module = createUniversaNuxtModule();
     const hooks: Record<string, (...args: unknown[]) => void> = {};
     module.setup(
       {},
@@ -170,8 +170,8 @@ describe("bridgesocket adapters", () => {
     expect(prodHooks["vite:extendConfig"]).toBeUndefined();
   });
 
-  it("createBridgeSocketAstroIntegration wires setup and teardown hooks", async () => {
-    const integration = createBridgeSocketAstroIntegration({
+  it("createUniversaAstroIntegration wires setup and teardown hooks", async () => {
+    const integration = createUniversaAstroIntegration({
       autoStart: false,
     });
     const fixture = createMiddlewareAdapterServerFixture();
@@ -191,8 +191,8 @@ describe("bridgesocket adapters", () => {
     await (integration.hooks["astro:server:done"] as () => Promise<void>)();
   });
 
-  it("createBridgeSocketAngularCliProxyConfig returns proxy rules for bridge routes", async () => {
-    const testBridgeKey = `${BRIDGESOCKET_NEXT_BRIDGE_GLOBAL_KEY}:angular-cli:test`;
+  it("createUniversaAngularCliProxyConfig returns proxy rules for bridge routes", async () => {
+    const testBridgeKey = `${UNIVERSA_NEXT_BRIDGE_GLOBAL_KEY}:angular-cli:test`;
     const bridgeGlobal = globalThis as typeof globalThis & {
       [key: string]: unknown;
     };
@@ -203,18 +203,18 @@ describe("bridgesocket adapters", () => {
       close: async () => undefined,
     });
 
-    const proxyConfig = await createBridgeSocketAngularCliProxyConfig({
+    const proxyConfig = await createUniversaAngularCliProxyConfig({
       angularCliBridgeGlobalKey: testBridgeKey,
     });
     expect(proxyConfig).toEqual({
-      "/__bridgesocket": {
+      "/__universa": {
         target: "http://127.0.0.1:43210",
         secure: false,
         changeOrigin: false,
         ws: true,
         logLevel: "warn",
       },
-      "/__bridgesocket/**": {
+      "/__universa/**": {
         target: "http://127.0.0.1:43210",
         secure: false,
         changeOrigin: false,
@@ -223,7 +223,7 @@ describe("bridgesocket adapters", () => {
       },
     });
 
-    const mergedProxyConfig = await withBridgeSocketAngularCliProxyConfig(
+    const mergedProxyConfig = await withUniversaAngularCliProxyConfig(
       {
         "/api": {
           target: "http://127.0.0.1:5000",
@@ -239,19 +239,19 @@ describe("bridgesocket adapters", () => {
     );
     expect(Object.keys(mergedProxyConfig)).toEqual([
       "/api",
-      "/__bridgesocket",
-      "/__bridgesocket/**",
+      "/__universa",
+      "/__universa/**",
     ]);
 
     delete bridgeGlobal[testBridgeKey];
   });
 
-  it("createBridgeSocketVitePlugin configures Vite middleware bridge", async () => {
-    const plugin = createBridgeSocketVitePlugin({ autoStart: false });
+  it("createUniversaVitePlugin configures Vite middleware bridge", async () => {
+    const plugin = createUniversaVitePlugin({ autoStart: false });
     const pluginObject = Array.isArray(plugin) ? plugin[0] : plugin;
     const fixture = createMiddlewareAdapterServerFixture();
 
-    expect(pluginObject?.name).toBe("bridgesocket-bridge");
+    expect(pluginObject?.name).toBe("universa-bridge");
     expect(pluginObject?.enforce).toBe("pre");
 
     await pluginObject?.configureServer?.(fixture.server as never);

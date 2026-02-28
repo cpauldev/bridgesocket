@@ -1,12 +1,12 @@
 import { type ResultPromise, execa } from "execa";
 import { createServer } from "net";
 
-import type { BridgeSocketRuntimeStatus } from "../types.js";
+import type { UniversaRuntimeStatus } from "../types.js";
 
 const DEFAULT_START_TIMEOUT_MS = 15000;
 const DEFAULT_HEALTH_PATH = "/api/version";
 const DEFAULT_HOST = "127.0.0.1";
-const DEFAULT_RUNTIME_PORT_ENV_VAR = "BRIDGESOCKET_RUNTIME_PORT";
+const DEFAULT_RUNTIME_PORT_ENV_VAR = "UNIVERSA_RUNTIME_PORT";
 
 export interface RuntimeHelperOptions {
   cwd?: string;
@@ -99,23 +99,23 @@ function resolveRuntimeCommand(options: RuntimeHelperOptions): {
 export class RuntimeHelper {
   #options: RuntimeHelperOptions;
   #child: ResultPromise | null = null;
-  #status: BridgeSocketRuntimeStatus = {
+  #status: UniversaRuntimeStatus = {
     phase: "stopped",
     url: null,
     pid: null,
     startedAt: null,
     lastError: null,
   };
-  #startPromise: Promise<BridgeSocketRuntimeStatus> | null = null;
-  #stopPromise: Promise<BridgeSocketRuntimeStatus> | null = null;
-  #listeners = new Set<(status: BridgeSocketRuntimeStatus) => void>();
+  #startPromise: Promise<UniversaRuntimeStatus> | null = null;
+  #stopPromise: Promise<UniversaRuntimeStatus> | null = null;
+  #listeners = new Set<(status: UniversaRuntimeStatus) => void>();
 
   constructor(options: RuntimeHelperOptions = {}) {
     this.#options = options;
   }
 
   onStatusChange(
-    listener: (status: BridgeSocketRuntimeStatus) => void,
+    listener: (status: UniversaRuntimeStatus) => void,
   ): () => void {
     this.#listeners.add(listener);
     return () => {
@@ -123,7 +123,7 @@ export class RuntimeHelper {
     };
   }
 
-  getStatus(): BridgeSocketRuntimeStatus {
+  getStatus(): UniversaRuntimeStatus {
     return { ...this.#status };
   }
 
@@ -145,14 +145,14 @@ export class RuntimeHelper {
     };
   }
 
-  async ensureStarted(): Promise<BridgeSocketRuntimeStatus> {
+  async ensureStarted(): Promise<UniversaRuntimeStatus> {
     if (this.#status.phase === "running") {
       return this.getStatus();
     }
     return this.start();
   }
 
-  async start(): Promise<BridgeSocketRuntimeStatus> {
+  async start(): Promise<UniversaRuntimeStatus> {
     if (this.#status.phase === "running") {
       return this.getStatus();
     }
@@ -283,12 +283,12 @@ export class RuntimeHelper {
     }
   }
 
-  async restart(): Promise<BridgeSocketRuntimeStatus> {
+  async restart(): Promise<UniversaRuntimeStatus> {
     await this.stop();
     return this.start();
   }
 
-  async stop(): Promise<BridgeSocketRuntimeStatus> {
+  async stop(): Promise<UniversaRuntimeStatus> {
     if (this.#status.phase === "stopped" || !this.#child) {
       this.setStatus({
         phase: "stopped",
@@ -348,7 +348,7 @@ export class RuntimeHelper {
     }
   }
 
-  private setStatus(next: BridgeSocketRuntimeStatus): void {
+  private setStatus(next: UniversaRuntimeStatus): void {
     this.#status = { ...next };
     for (const listener of this.#listeners) {
       listener(this.getStatus());

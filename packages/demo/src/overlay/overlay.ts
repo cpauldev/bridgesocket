@@ -47,7 +47,7 @@ const FAILURE_THRESHOLD = 2;
 
 function resolveBridgeTransportState(
   current: TransportState,
-  bridgeState: import("bridgesocket").BridgeSocketBridgeState,
+  bridgeState: import("universa-kit").UniversaBridgeState,
 ): TransportState {
   if (
     current === "runtime_starting" &&

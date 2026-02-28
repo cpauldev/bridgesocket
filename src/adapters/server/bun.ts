@@ -1,15 +1,15 @@
-import { BRIDGESOCKET_WS_SUBPROTOCOL } from "../../bridge/constants.js";
-import type { BridgeSocketBridgeOptions } from "../../bridge/options.js";
+import { UNIVERSA_WS_SUBPROTOCOL } from "../../bridge/constants.js";
+import type { UniversaBridgeOptions } from "../../bridge/options.js";
 import {
   type StandaloneBridgeServer,
-  startStandaloneBridgeSocketBridgeServer,
+  startStandaloneUniversaBridgeServer,
 } from "../../bridge/standalone.js";
 import {
-  type BridgeSocketAdapterOptions,
+  type UniversaAdapterOptions,
   resolveAdapterOptions,
 } from "../shared/adapter-utils.js";
 
-export type BunBridgeSocketOptions = BridgeSocketAdapterOptions;
+export type BunUniversaOptions = UniversaAdapterOptions;
 
 export interface BunServeLikeServer {
   upgrade: (
@@ -47,13 +47,13 @@ export type BunServeNextFetchHandler = (
   server: BunServeLikeServer,
 ) => Response | Promise<Response>;
 
-interface BridgeSocketBunSocketState {
+interface UniversaBunSocketState {
   upstreamUrl: string;
   upstream: WebSocket | null;
 }
 
-interface BridgeSocketBunSocketData {
-  __bridgesocket?: BridgeSocketBunSocketState;
+interface UniversaBunSocketData {
+  __universaKit?: UniversaBunSocketState;
 }
 
 type WebSocketPayload = string | ArrayBuffer | Blob | Uint8Array;
@@ -63,16 +63,14 @@ export interface BunBridgeHandle {
   baseUrl: string;
   createFetchHandler: (next: BunServeNextFetchHandler) => BunServeFetchHandler;
   createWebSocketHandlers: <
-    Data extends BridgeSocketBunSocketData = BridgeSocketBunSocketData,
+    Data extends UniversaBunSocketData = UniversaBunSocketData,
   >(
     existing?: BunServeWebSocketHandlers<Data>,
   ) => BunServeWebSocketHandlers<Data>;
   close: () => Promise<void>;
 }
 
-function toBridgeOptions(
-  options: BunBridgeSocketOptions,
-): BridgeSocketBridgeOptions {
+function toBridgeOptions(options: BunUniversaOptions): UniversaBridgeOptions {
   const {
     adapterName: _adapterName,
     rewriteSource: _rewriteSource,
@@ -132,16 +130,15 @@ function closeUpstreamSocket(upstream: WebSocket | null): void {
   upstream.close();
 }
 
-export async function attachBridgeSocketToBunServe(
-  options: BunBridgeSocketOptions = {},
+export async function attachUniversaToBunServe(
+  options: BunUniversaOptions = {},
 ): Promise<BunBridgeHandle> {
   const resolvedOptions = resolveAdapterOptions(options);
-  const bridgeServer = await startStandaloneBridgeSocketBridgeServer(
+  const bridgeServer = await startStandaloneUniversaBridgeServer(
     toBridgeOptions(resolvedOptions),
   );
   const upstreamSockets = new Set<WebSocket>();
-  const bridgePathPrefix =
-    resolvedOptions.bridgePathPrefix ?? "/__bridgesocket";
+  const bridgePathPrefix = resolvedOptions.bridgePathPrefix ?? "/__universa";
 
   const createFetchHandler = (
     next: BunServeNextFetchHandler,
@@ -162,17 +159,17 @@ export async function attachBridgeSocketToBunServe(
         const pathWithSearch = `${url.pathname}${url.search}`;
         const upgraded = server.upgrade(request, {
           data: {
-            __bridgesocket: {
+            __universaKit: {
               upstreamUrl: toWebSocketUrl(bridgeServer.baseUrl, pathWithSearch),
               upstream: null,
             },
-          } satisfies BridgeSocketBunSocketData,
+          } satisfies UniversaBunSocketData,
         });
         if (upgraded) {
           return undefined;
         }
 
-        return new Response("Failed to upgrade bridgesocket websocket", {
+        return new Response("Failed to upgrade universa-kit websocket", {
           status: 400,
         });
       }
@@ -191,13 +188,13 @@ export async function attachBridgeSocketToBunServe(
   };
 
   const createWebSocketHandlers = <
-    Data extends BridgeSocketBunSocketData = BridgeSocketBunSocketData,
+    Data extends UniversaBunSocketData = UniversaBunSocketData,
   >(
     existing: BunServeWebSocketHandlers<Data> = {},
   ): BunServeWebSocketHandlers<Data> => {
     return {
       open: (socket) => {
-        const bridgeSocketData = socket.data.__bridgesocket;
+        const bridgeSocketData = socket.data.__universaKit;
         if (!bridgeSocketData) {
           existing.open?.(socket);
           return;
@@ -205,7 +202,7 @@ export async function attachBridgeSocketToBunServe(
 
         const upstream = new WebSocket(
           bridgeSocketData.upstreamUrl,
-          BRIDGESOCKET_WS_SUBPROTOCOL,
+          UNIVERSA_WS_SUBPROTOCOL,
         );
         bridgeSocketData.upstream = upstream;
         upstreamSockets.add(upstream);
@@ -214,7 +211,7 @@ export async function attachBridgeSocketToBunServe(
           socket.send(normalizeWebSocketMessage(event.data));
         });
         upstream.addEventListener("error", () => {
-          socket.close(1011, "BridgeSocket upstream websocket error");
+          socket.close(1011, "Universa upstream websocket error");
         });
         upstream.addEventListener("close", (event) => {
           upstreamSockets.delete(upstream);
@@ -222,7 +219,7 @@ export async function attachBridgeSocketToBunServe(
         });
       },
       message: (socket, message) => {
-        const bridgeSocketData = socket.data.__bridgesocket;
+        const bridgeSocketData = socket.data.__universaKit;
         if (!bridgeSocketData) {
           existing.message?.(socket, message);
           return;
@@ -235,7 +232,7 @@ export async function attachBridgeSocketToBunServe(
         upstream.send(normalizeWebSocketMessage(message));
       },
       close: (socket, code, reason) => {
-        const bridgeSocketData = socket.data.__bridgesocket;
+        const bridgeSocketData = socket.data.__universaKit;
         if (!bridgeSocketData) {
           existing.close?.(socket, code, reason);
           return;
@@ -245,7 +242,7 @@ export async function attachBridgeSocketToBunServe(
         bridgeSocketData.upstream = null;
       },
       error: (socket, error) => {
-        const bridgeSocketData = socket.data.__bridgesocket;
+        const bridgeSocketData = socket.data.__universaKit;
         if (!bridgeSocketData) {
           existing.error?.(socket, error);
           return;
@@ -272,15 +269,15 @@ export async function attachBridgeSocketToBunServe(
   };
 }
 
-export function withBridgeSocketBunServeFetch(
+export function withUniversaBunServeFetch(
   next: BunServeNextFetchHandler,
   handle: BunBridgeHandle,
 ): BunServeFetchHandler {
   return handle.createFetchHandler(next);
 }
 
-export function withBridgeSocketBunServeWebSocketHandlers<
-  Data extends BridgeSocketBunSocketData = BridgeSocketBunSocketData,
+export function withUniversaBunServeWebSocketHandlers<
+  Data extends UniversaBunSocketData = UniversaBunSocketData,
 >(
   handle: BunBridgeHandle,
   existing?: BunServeWebSocketHandlers<Data>,
