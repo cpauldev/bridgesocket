@@ -1,9 +1,7 @@
 import {
   type DashboardActionId,
-  type DashboardActionState,
   type DashboardControllerState,
   type DashboardFrameworkId,
-  type DashboardTableSection,
   createDashboardController,
 } from "demo/dashboard";
 import {
@@ -18,19 +16,29 @@ import {
 } from "lucide";
 import { Tabs } from "universa-ui/components";
 
-import { isTableSection, resolveRuntimeView } from "./dashboard";
+import {
+  DASHBOARD_ACTION_CONTROLS,
+  type DashboardRuntimeUiState,
+  buildRuntimeUiState,
+  createActionStateMap,
+  createTabsContentSignature,
+  resolveActionLabel,
+} from "./dashboard";
 import {
   frameworkIconSvg,
   getFrameworkVisual,
   viteBadgeIconSvg,
 } from "./frameworks";
-import { createRuntimeTabItems } from "./runtime-tab-panels";
+import {
+  createRuntimeTabItems,
+  syncRuntimeTabItems,
+} from "./runtime-tab-panels";
 import { applyTheme, getInitialTheme, toggleTheme } from "./theme";
 
-const ACTION_ICONS: Record<"play" | "rotate-ccw" | "square", IconNode> = {
-  play: Play,
-  "rotate-ccw": RotateCcw,
-  square: Square,
+const ACTION_ICONS: Record<DashboardActionId, IconNode> = {
+  start: Play,
+  stop: Square,
+  restart: RotateCcw,
 };
 
 const THEME_ICONS: Record<"dark" | "light", IconNode> = {
@@ -63,55 +71,59 @@ function createLucideIcon(
 
 function setThemeIcon(button: HTMLElement, theme: "light" | "dark"): void {
   const icon = theme === "dark" ? THEME_ICONS.dark : THEME_ICONS.light;
-  button.replaceChildren(createLucideIcon(icon, 20, "dp-theme-icon"));
+  button.replaceChildren(createLucideIcon(icon, 20, "demo-theme-icon"));
 }
 
-function buildRuntimeUiState(
-  state: DashboardControllerState,
-  activeSectionId: string | null,
-): {
-  controls: DashboardActionState[];
-  runtimeSummary: string;
-  runtimeSections: DashboardTableSection[];
-  runtimeError: string | null;
-  activeSectionId: string | null;
-} {
-  const runtimeView = resolveRuntimeView(state);
-  const controlsSection = runtimeView.sections.find(
-    (section) => section.id === "controls",
+interface ActionButtonRefs {
+  button: HTMLButtonElement;
+  label: HTMLSpanElement;
+}
+
+function createActionButton(input: {
+  actionId: DashboardActionId;
+  initialLabel: string;
+  onClick: (actionId: DashboardActionId) => void;
+}): ActionButtonRefs {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.setAttribute("data-slot", "button");
+  button.setAttribute("data-size", "sm");
+  button.setAttribute("data-variant", "outline");
+  button.className = "demo-action-btn";
+  button.setAttribute("data-action", input.actionId);
+  button.appendChild(
+    createLucideIcon(ACTION_ICONS[input.actionId], 14, "demo-action-icon"),
   );
-  const runtimeSections = runtimeView.sections.filter(isTableSection);
-  const resolvedActiveSectionId =
-    activeSectionId &&
-    runtimeSections.some((section) => section.id === activeSectionId)
-      ? activeSectionId
-      : (runtimeSections[0]?.id ?? null);
 
-  return {
-    controls:
-      controlsSection && controlsSection.id === "controls"
-        ? controlsSection.actions
-        : [],
-    runtimeSummary: runtimeView.summary,
-    runtimeSections,
-    runtimeError: state.live.errorMessage,
-    activeSectionId: resolvedActiveSectionId,
-  };
+  const label = document.createElement("span");
+  label.textContent = input.initialLabel;
+  button.appendChild(label);
+  button.addEventListener("click", () => {
+    input.onClick(input.actionId);
+  });
+
+  return { button, label };
 }
 
-function createTabsContentSignature(input: {
-  runtimeSections: DashboardTableSection[];
-  runtimeError: string | null;
-}): string {
-  const sectionShape = input.runtimeSections.map((section) => ({
-    id: section.id,
-    title: section.title,
-    rows: section.rows,
-  }));
-  return JSON.stringify({
-    sections: sectionShape,
-    runtimeError: input.runtimeError ?? null,
-  });
+function applyActionState(
+  refs: ActionButtonRefs,
+  input: { label: string; disabled: boolean },
+): void {
+  if (refs.label.textContent !== input.label) {
+    refs.label.textContent = input.label;
+  }
+  if (refs.button.disabled !== input.disabled) {
+    refs.button.disabled = input.disabled;
+  }
+  if (refs.button.hidden) {
+    refs.button.hidden = false;
+  }
+  if (refs.button.getAttribute("aria-label") !== input.label) {
+    refs.button.setAttribute("aria-label", input.label);
+  }
+  if (refs.button.getAttribute("title") !== input.label) {
+    refs.button.setAttribute("title", input.label);
+  }
 }
 
 export function mountVanillaDashboard(options: {
@@ -119,33 +131,32 @@ export function mountVanillaDashboard(options: {
   frameworkId: DashboardFrameworkId;
 }): () => void {
   const framework = getFrameworkVisual(options.frameworkId);
-  const controller = createDashboardController({
-    currentFrameworkId: options.frameworkId,
-  });
+  const controller = createDashboardController();
 
   let theme = getInitialTheme();
   let activeSectionId: string | null = null;
   let runtimeSummaryText = "";
   let tabsSignature = "";
+  let runtimeTabItems = createRuntimeTabItems([], null);
   const vitePlusIconHtml = createLucideIcon(
     Plus,
     14,
-    "dp-vite-tag-plus-icon",
+    "demo-vite-tag-plus-icon",
   ).outerHTML;
   const viteTagHtml = framework.usesVite
-    ? `<div class="dp-vite-tag" aria-label="Powered by Vite">${vitePlusIconHtml}<span class="dp-vite-tag-icon" aria-hidden="true">${viteBadgeIconSvg()}</span><span>Vite</span></div>`
+    ? `<div class="demo-vite-tag" aria-label="Powered by Vite">${vitePlusIconHtml}<span class="demo-vite-tag-icon" aria-hidden="true">${viteBadgeIconSvg()}</span><span>Vite</span></div>`
     : "";
 
-  options.root.className = "dp-page universa-ui-root universa-ui-surface";
+  options.root.className = "demo-page universa-ui-root universa-ui-surface";
   options.root.setAttribute("data-theme", theme);
   options.root.innerHTML = `
-    <div class="dp-container">
-      <header class="dp-header">
-        <div class="dp-header-left">
-          <h1 class="dp-title">Demo</h1>
-          <div class="dp-pill-row">
-            <div class="dp-pill" style="background-color:${framework.pillBg};color:${framework.pillFg};">
-              <span class="dp-pill-icon" aria-hidden="true">${frameworkIconSvg(options.frameworkId)}</span>
+    <div class="demo-container">
+      <header class="demo-header">
+        <div class="demo-header-left">
+          <h1 class="demo-title">Demo</h1>
+          <div class="demo-pill-row">
+            <div class="demo-pill" style="background-color:${framework.pillBg};color:${framework.pillFg};">
+              <span class="demo-pill-icon" aria-hidden="true">${frameworkIconSvg(options.frameworkId)}</span>
               <span>${escapeHtml(framework.pillLabel)}</span>
             </div>
             ${viteTagHtml}
@@ -153,24 +164,24 @@ export function mountVanillaDashboard(options: {
         </div>
       </header>
 
-      <div class="dp-top-controls" data-runtime-controls="true"></div>
+      <div class="demo-top-controls" data-runtime-controls="true"></div>
 
-      <div class="dp-dashboard-grid">
-        <div class="dp-column">
-          <div data-slot="card" class="dp-dashboard-card" style="border-radius:var(--universa-ui-radius-2xl);box-shadow:none;">
+      <div class="demo-dashboard-grid">
+        <div class="demo-column">
+          <div data-slot="card" class="demo-dashboard-card" style="border-radius:var(--universa-ui-radius-2xl);box-shadow:none;">
             <div data-slot="card-header">
-              <div class="dp-card-header-row">
+              <div class="demo-card-header-row">
                 <p data-slot="card-title">Runtime</p>
               </div>
-              <p data-slot="card-description" class="dp-runtime-summary" data-runtime-summary="true"></p>
+              <p data-slot="card-description" class="demo-runtime-summary" data-runtime-summary="true"></p>
             </div>
             <div data-slot="card-content"><div data-runtime-tabs-host="true"></div></div>
           </div>
         </div>
       </div>
 
-      <div class="dp-bottom-controls">
-        <button data-slot="button" data-size="icon" data-variant="outline" class="dp-theme-toggle" data-toggle-theme="true" aria-label="Toggle theme" title="Toggle theme"></button>
+      <div class="demo-bottom-controls">
+        <button data-slot="button" data-size="icon" data-variant="outline" class="demo-theme-toggle" data-toggle-theme="true" aria-label="Toggle theme" title="Toggle theme"></button>
       </div>
     </div>
   `;
@@ -193,8 +204,8 @@ export function mountVanillaDashboard(options: {
   }
 
   const tabs = new Tabs({
-    className: "dp-runtime-tabs",
-    listClassName: "dp-runtime-tabs-list",
+    className: "demo-runtime-tabs",
+    listClassName: "demo-runtime-tabs-list",
     orientation: "horizontal",
     variant: "default",
     items: [],
@@ -204,77 +215,38 @@ export function mountVanillaDashboard(options: {
   });
   tabsHost.replaceChildren(tabs.getElement());
 
-  const createActionButton = (
-    actionId: DashboardActionId,
-    icon: "play" | "rotate-ccw" | "square",
-    initialLabel: string,
-  ): { button: HTMLButtonElement; label: HTMLSpanElement } => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.setAttribute("data-slot", "button");
-    button.setAttribute("data-size", "sm");
-    button.setAttribute("data-variant", "outline");
-    button.className = "dp-action-btn";
-    button.setAttribute("data-action", actionId);
-    button.appendChild(
-      createLucideIcon(ACTION_ICONS[icon], 14, "dp-action-icon"),
-    );
-
-    const label = document.createElement("span");
-    label.textContent = initialLabel;
-    button.appendChild(label);
-    button.addEventListener("click", () => {
-      void controller.runAction(actionId);
+  const actionControlMap = new Map<DashboardActionId, ActionButtonRefs>();
+  for (const control of DASHBOARD_ACTION_CONTROLS) {
+    const refs = createActionButton({
+      actionId: control.id,
+      initialLabel: control.fallbackLabel,
+      onClick: (actionId) => {
+        void controller.runAction(actionId);
+      },
     });
+    actionControlMap.set(control.id, refs);
+    controlsHost.appendChild(refs.button);
+  }
 
-    return { button, label };
-  };
-
-  const startControl = createActionButton("start", "play", "Start");
-  const stopControl = createActionButton("stop", "square", "Stop");
-  const restartControl = createActionButton("restart", "rotate-ccw", "Restart");
-
-  controlsHost.append(
-    startControl.button,
-    stopControl.button,
-    restartControl.button,
-  );
-
-  const syncControlButtons = (actions: DashboardActionState[]) => {
-    const startAction = actions.find((action) => action.id === "start") ?? null;
-    const stopAction = actions.find((action) => action.id === "stop") ?? null;
-    const restartAction =
-      actions.find((action) => action.id === "restart") ?? null;
-
-    const applyActionState = (
-      refs: { button: HTMLButtonElement; label: HTMLSpanElement },
-      action: DashboardActionState | null,
-      fallbackLabel: string,
-    ) => {
-      if (!action) {
-        refs.label.textContent = fallbackLabel;
-        refs.button.disabled = true;
-        refs.button.hidden = false;
-        refs.button.setAttribute("aria-label", fallbackLabel);
-        refs.button.setAttribute("title", fallbackLabel);
-        return;
+  const syncControlButtons = (actions: DashboardRuntimeUiState["controls"]) => {
+    const actionsById = createActionStateMap(actions);
+    for (const control of DASHBOARD_ACTION_CONTROLS) {
+      const refs = actionControlMap.get(control.id);
+      if (!refs) {
+        continue;
       }
-
-      const actionLabel = action.loading ? action.loadingLabel : action.label;
-      refs.label.textContent = actionLabel;
-      refs.button.disabled = action.disabled;
-      refs.button.hidden = false;
-      refs.button.setAttribute("aria-label", actionLabel);
-      refs.button.setAttribute("title", actionLabel);
-    };
-
-    applyActionState(startControl, startAction, "Start");
-    applyActionState(stopControl, stopAction, "Stop");
-    applyActionState(restartControl, restartAction, "Restart");
+      const action = actionsById.get(control.id) ?? null;
+      applyActionState(refs, {
+        label: resolveActionLabel(action, control.fallbackLabel),
+        disabled: action?.disabled ?? true,
+      });
+    }
   };
 
-  const syncRuntime = (state: DashboardControllerState) => {
-    const runtimeState = buildRuntimeUiState(state, activeSectionId);
+  let clockTimer: ReturnType<typeof setInterval> | null = null;
+
+  const syncRuntime = (state: DashboardControllerState, now = Date.now()) => {
+    const runtimeState = buildRuntimeUiState(state, activeSectionId, now);
     activeSectionId = runtimeState.activeSectionId;
 
     if (runtimeSummaryText !== runtimeState.runtimeSummary) {
@@ -284,17 +256,22 @@ export function mountVanillaDashboard(options: {
 
     syncControlButtons(runtimeState.controls);
 
-    const nextTabsSignature = createTabsContentSignature({
-      runtimeSections: runtimeState.runtimeSections,
-      runtimeError: runtimeState.runtimeError,
-    });
+    const nextTabsSignature = createTabsContentSignature(
+      runtimeState.runtimeSections,
+      runtimeState.runtimeError,
+    );
     if (tabsSignature !== nextTabsSignature) {
       tabsSignature = nextTabsSignature;
-      tabs.setItems(
-        createRuntimeTabItems(
-          runtimeState.runtimeSections,
-          runtimeState.runtimeError,
-        ),
+      runtimeTabItems = createRuntimeTabItems(
+        runtimeState.runtimeSections,
+        runtimeState.runtimeError,
+      );
+      tabs.setItems(runtimeTabItems);
+    } else {
+      syncRuntimeTabItems(
+        runtimeTabItems,
+        runtimeState.runtimeSections,
+        runtimeState.runtimeError,
       );
     }
 
@@ -324,8 +301,15 @@ export function mountVanillaDashboard(options: {
 
   applyTheme(theme);
   controller.start();
+  clockTimer = setInterval(() => {
+    syncRuntime(controller.getState());
+  }, 1000);
 
   return () => {
+    if (clockTimer) {
+      clearInterval(clockTimer);
+      clockTimer = null;
+    }
     tabs.destroy();
     unsubscribe();
     controller.stop();

@@ -7,6 +7,7 @@ import {
 } from "react";
 import { type Root as ReactRoot, createRoot } from "react-dom/client";
 import { Toaster, sileo } from "sileo";
+import type { UniversaBridgeEvent } from "universa-kit";
 
 import {
   OverlayPanel,
@@ -44,6 +45,34 @@ import type {
 
 type TransportState = OverlayState["transportState"];
 const FAILURE_THRESHOLD = 2;
+type RuntimeStatusEvent = Extract<
+  UniversaBridgeEvent,
+  { type: "runtime-status" }
+>;
+type RuntimeErrorEvent = Extract<
+  UniversaBridgeEvent,
+  { type: "runtime-error" }
+>;
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function isRuntimeStatusEvent(message: unknown): message is RuntimeStatusEvent {
+  if (!isObject(message)) return false;
+  if (message.type !== "runtime-status") return false;
+  if (typeof message.timestamp !== "number") return false;
+  if (!isObject(message.status)) return false;
+  return typeof message.status.phase === "string";
+}
+
+function isRuntimeErrorEvent(message: unknown): message is RuntimeErrorEvent {
+  if (!isObject(message)) return false;
+  if (message.type !== "runtime-error") return false;
+  return (
+    typeof message.timestamp === "number" && typeof message.error === "string"
+  );
+}
 
 function resolveBridgeTransportState(
   current: TransportState,
@@ -67,6 +96,20 @@ function resolveFailureTransportState(
   return current === "runtime_starting"
     ? "runtime_starting"
     : "bridge_detecting";
+}
+
+function resolveRuntimeEventTransportState(
+  current: TransportState,
+  phase: string,
+): TransportState {
+  if (
+    current === "runtime_starting" &&
+    phase !== "running" &&
+    phase !== "error"
+  ) {
+    return "runtime_starting";
+  }
+  return "connected";
 }
 
 function shouldRetainConnectedState(
@@ -796,6 +839,67 @@ export class DemoOverlay {
     }
   }
 
+  private applyRuntimeStatusEvent(event: RuntimeStatusEvent): void {
+    if (!this.#state.bridgeState) {
+      void this.refreshState();
+      return;
+    }
+
+    const nextTransport = resolveRuntimeEventTransportState(
+      this.#state.transportState,
+      event.status.phase,
+    );
+    const nextBridgeState = {
+      ...this.#state.bridgeState,
+      transportState: nextTransport,
+      runtime: event.status,
+    };
+
+    this.dispatch({ type: "setBridgeState", bridgeState: nextBridgeState });
+    this.dispatch({ type: "setTransportState", transportState: nextTransport });
+    if (!this.#state.connected) {
+      this.dispatch({ type: "setConnected", connected: true });
+    }
+    this.dispatch({ type: "markSuccess", at: event.timestamp });
+    if (this.#state.loadingAction === "Connecting") {
+      this.dispatch({ type: "setLoadingAction", loadingAction: null });
+    }
+    this.#runtimeRefreshFailures = 0;
+  }
+
+  private applyRuntimeErrorEvent(event: RuntimeErrorEvent): void {
+    const nextTransport =
+      this.#state.transportState === "runtime_starting"
+        ? "runtime_starting"
+        : "connected";
+    if (this.#state.bridgeState) {
+      this.dispatch({
+        type: "setBridgeState",
+        bridgeState: {
+          ...this.#state.bridgeState,
+          transportState: nextTransport,
+        },
+      });
+    }
+    this.dispatch({ type: "setTransportState", transportState: nextTransport });
+    if (!this.#state.connected) {
+      this.dispatch({ type: "setConnected", connected: true });
+    }
+    this.dispatch({ type: "markSuccess", at: event.timestamp });
+    this.dispatch({ type: "setError", errorMessage: event.error });
+    this.#runtimeRefreshFailures = 0;
+  }
+
+  private handleWebSocketMessage(message: unknown): void {
+    if (isRuntimeStatusEvent(message)) {
+      this.applyRuntimeStatusEvent(message);
+      return;
+    }
+    if (isRuntimeErrorEvent(message)) {
+      this.applyRuntimeErrorEvent(message);
+    }
+  }
+
   // ── WebSocket ──────────────────────────────────────────────────────────────
 
   private connectWebSocket(): void {
@@ -814,6 +918,7 @@ export class DemoOverlay {
           this.#wsFallbackMode = false;
           this.#wsOpenedAt = Date.now();
           this.scheduleBodyUpdate();
+          void this.refreshState();
         },
         onClose: () => {
           if (connectionVersion !== this.#wsConnectionVersion) return;
@@ -826,21 +931,14 @@ export class DemoOverlay {
         onError: () => {
           if (connectionVersion !== this.#wsConnectionVersion) return;
           this.#wsConnected = false;
+          this.#wsConsecutiveFailures += 1;
           this.#wsFallbackMode = true;
           this.scheduleBodyUpdate();
           this.scheduleReconnect();
         },
         onMessage: (message) => {
           if (connectionVersion !== this.#wsConnectionVersion) return;
-          const msg = message as { type?: string; data?: unknown };
-          if (
-            msg.type === "update" ||
-            msg.type === "init" ||
-            msg.type === "runtime-status" ||
-            msg.type === "runtime-error"
-          ) {
-            void this.refreshState();
-          }
+          this.handleWebSocketMessage(message);
         },
       });
     } catch {
@@ -876,6 +974,9 @@ export class DemoOverlay {
   private startStatePolling(): void {
     this.stopStatePolling();
     this.#statePollTimer = setInterval(() => {
+      if (this.#allowWebSocket && this.#wsConnected) {
+        return;
+      }
       void this.refreshState();
     }, STATE_POLL_INTERVAL_MS);
   }

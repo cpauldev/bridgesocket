@@ -8,13 +8,24 @@ export function formatDate(ms: number): string {
   return new Date(ms).toLocaleString();
 }
 
-export function formatLastUpdated(timestamp: number | null): string {
+export function formatLastUpdated(
+  timestamp: number | null,
+  now = Date.now(),
+): string {
   if (!timestamp) return "n/a";
-  return new Date(timestamp).toLocaleTimeString();
+  const deltaSeconds = Math.max(0, Math.floor((now - timestamp) / 1000));
+  if (deltaSeconds < 5) return "just now";
+  if (deltaSeconds < 60) return `${deltaSeconds}s ago`;
+  const deltaMinutes = Math.floor(deltaSeconds / 60);
+  if (deltaMinutes < 60) return `${deltaMinutes}m ago`;
+  const deltaHours = Math.floor(deltaMinutes / 60);
+  if (deltaHours < 24) return `${deltaHours}h ago`;
+  const deltaDays = Math.floor(deltaHours / 24);
+  return `${deltaDays}d ago`;
 }
 
-export function formatUptime(startedAt: number): string {
-  const s = Math.floor((Date.now() - startedAt) / 1000);
+export function formatUptime(startedAt: number, now = Date.now()): string {
+  const s = Math.max(0, Math.floor((now - startedAt) / 1000));
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m ${s % 60}s`;

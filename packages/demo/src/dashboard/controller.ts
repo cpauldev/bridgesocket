@@ -1,3 +1,5 @@
+import type { UniversaBridgeEvent } from "universa-kit";
+
 import {
   type DemoApi,
   type WebSocketBinding,
@@ -27,6 +29,49 @@ import type {
 const DEFAULT_LIVE_POLL_INTERVAL_MS = 2000;
 const WS_RECONNECT_DELAY_MS = 1500;
 let overlayBootstrapPromise: Promise<void> | null = null;
+
+type RuntimeStatusEvent = Extract<
+  UniversaBridgeEvent,
+  { type: "runtime-status" }
+>;
+type RuntimeErrorEvent = Extract<
+  UniversaBridgeEvent,
+  { type: "runtime-error" }
+>;
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function isRuntimeStatusEvent(message: unknown): message is RuntimeStatusEvent {
+  if (!isObject(message)) return false;
+  if (message.type !== "runtime-status") return false;
+  if (typeof message.timestamp !== "number") return false;
+  if (!isObject(message.status)) return false;
+  return typeof message.status.phase === "string";
+}
+
+function isRuntimeErrorEvent(message: unknown): message is RuntimeErrorEvent {
+  if (!isObject(message)) return false;
+  if (message.type !== "runtime-error") return false;
+  return (
+    typeof message.timestamp === "number" && typeof message.error === "string"
+  );
+}
+
+function resolveRuntimeEventTransportState(
+  currentState: DashboardLiveState["transportState"],
+  phase: string,
+): DashboardLiveState["transportState"] {
+  if (
+    currentState === "runtime_starting" &&
+    phase !== "running" &&
+    phase !== "error"
+  ) {
+    return "runtime_starting";
+  }
+  return "connected";
+}
 
 function ensureOverlayMounted(): void {
   if (typeof window === "undefined") return;
@@ -132,6 +177,7 @@ export function createDashboardController(
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let wsConnectionVersion = 0;
   let discoveryUnsubscribe: (() => void) | null = null;
+  let refreshInFlight: Promise<void> | null = null;
   let started = false;
 
   const notify = () => {
@@ -226,6 +272,79 @@ export function createDashboardController(
     }, WS_RECONNECT_DELAY_MS);
   };
 
+  const applyRuntimeStatusEvent = (event: RuntimeStatusEvent): void => {
+    setState((prev) => {
+      if (!prev.live.bridgeState) {
+        return prev;
+      }
+
+      const nextTransportState = resolveRuntimeEventTransportState(
+        prev.live.transportState,
+        event.status.phase,
+      );
+
+      const nextLive: DashboardLiveState = {
+        ...prev.live,
+        hasBootstrapped: true,
+        connected: true,
+        transportState: nextTransportState,
+        bridgeState: {
+          ...prev.live.bridgeState,
+          transportState: nextTransportState,
+          runtime: event.status,
+        },
+        errorMessage: null,
+        lastUpdatedAt: event.timestamp,
+        consecutiveFailures: 0,
+      };
+      if (areDashboardLiveStatesEqual(prev.live, nextLive)) {
+        return prev;
+      }
+      return setLiveState(prev, nextLive);
+    });
+  };
+
+  const applyRuntimeErrorEvent = (event: RuntimeErrorEvent): void => {
+    setState((prev) => {
+      const nextTransportState =
+        prev.live.transportState === "runtime_starting"
+          ? "runtime_starting"
+          : "connected";
+      const nextLive: DashboardLiveState = {
+        ...prev.live,
+        hasBootstrapped: true,
+        connected: true,
+        transportState: nextTransportState,
+        bridgeState: prev.live.bridgeState
+          ? { ...prev.live.bridgeState, transportState: nextTransportState }
+          : null,
+        errorMessage: event.error,
+        lastUpdatedAt: event.timestamp,
+        consecutiveFailures: 0,
+      };
+      if (areDashboardLiveStatesEqual(prev.live, nextLive)) {
+        return prev;
+      }
+      return setLiveState(prev, nextLive);
+    });
+  };
+
+  const handleWebSocketMessage = (message: unknown): void => {
+    if (isRuntimeStatusEvent(message)) {
+      if (!state.live.bridgeState) {
+        void refresh();
+        return;
+      }
+      applyRuntimeStatusEvent(message);
+      return;
+    }
+
+    if (isRuntimeErrorEvent(message)) {
+      applyRuntimeErrorEvent(message);
+      return;
+    }
+  };
+
   const connectWebSocket = () => {
     const connectionVersion = ++wsConnectionVersion;
     clearReconnectTimer();
@@ -247,6 +366,7 @@ export function createDashboardController(
               mode: "websocket",
               failures: 0,
             }));
+            void refresh();
           },
           onClose: () => {
             if (connectionVersion !== wsConnectionVersion) return;
@@ -268,9 +388,9 @@ export function createDashboardController(
             }));
             scheduleReconnect();
           },
-          onMessage: () => {
+          onMessage: (message) => {
             if (connectionVersion !== wsConnectionVersion) return;
-            void refresh();
+            handleWebSocketMessage(message);
           },
         },
       );
@@ -285,31 +405,41 @@ export function createDashboardController(
     }
   };
 
-  const refresh = async (): Promise<void> => {
-    try {
-      const bridgeState = await runWithBaseUrlFallback(
-        () => api.getBridgeState(),
-        true,
-      );
-      setState((prev) => {
-        const nextLive = resolveDashboardLiveStateOnSuccess(
-          prev.live,
-          bridgeState,
-        );
-        if (areDashboardLiveStatesEqual(prev.live, nextLive)) {
-          return prev;
-        }
-        return setLiveState(prev, nextLive);
-      });
-    } catch (error) {
-      setState((prev) => {
-        const nextLive = resolveDashboardLiveStateOnFailure(prev.live, error);
-        if (areDashboardLiveStatesEqual(prev.live, nextLive)) {
-          return prev;
-        }
-        return setLiveState(prev, nextLive);
-      });
+  const refresh = (): Promise<void> => {
+    if (refreshInFlight) {
+      return refreshInFlight;
     }
+
+    refreshInFlight = (async () => {
+      try {
+        const bridgeState = await runWithBaseUrlFallback(
+          () => api.getBridgeState(),
+          true,
+        );
+        setState((prev) => {
+          const nextLive = resolveDashboardLiveStateOnSuccess(
+            prev.live,
+            bridgeState,
+          );
+          if (areDashboardLiveStatesEqual(prev.live, nextLive)) {
+            return prev;
+          }
+          return setLiveState(prev, nextLive);
+        });
+      } catch (error) {
+        setState((prev) => {
+          const nextLive = resolveDashboardLiveStateOnFailure(prev.live, error);
+          if (areDashboardLiveStatesEqual(prev.live, nextLive)) {
+            return prev;
+          }
+          return setLiveState(prev, nextLive);
+        });
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+
+    return refreshInFlight;
   };
 
   const runAction = async (action: DashboardActionId): Promise<void> => {
@@ -467,6 +597,9 @@ export function createDashboardController(
       }
 
       refreshTimer = setInterval(() => {
+        if (shouldUseWebSocket && state.websocket.status === "open") {
+          return;
+        }
         void refresh();
       }, livePollIntervalMs);
     },

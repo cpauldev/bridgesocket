@@ -3,6 +3,7 @@ import type { UniversaBridgeState } from "universa-kit";
 import {
   formatBytes,
   formatDate,
+  formatLastUpdated,
   formatPhase,
   formatTransportState,
   formatUptime,
@@ -215,7 +216,7 @@ export function resolveDashboardLiveStateOnSuccess(
     transportState: nextTransportState,
     bridgeState,
     errorMessage: null,
-    // Last contact should represent the most recent successful bridge poll.
+    // Last contact tracks the most recent successful bridge sync.
     lastUpdatedAt: now,
     consecutiveFailures: 0,
     fallbackCommand:
@@ -348,11 +349,13 @@ export function buildRuntimeSections(input: {
   live: DashboardLiveState;
   websocket: DashboardWebSocketSnapshot;
   actionLoading: DashboardActionId | null;
+  now?: number;
 }): {
   summary: string;
   sections: DashboardRuntimeSection[];
 } {
   const { live, websocket, actionLoading } = input;
+  const now = input.now ?? Date.now();
   const bridgeState = live.bridgeState;
   const runtime = bridgeState?.runtime;
   const capabilities = bridgeState?.capabilities;
@@ -375,21 +378,12 @@ export function buildRuntimeSections(input: {
       resolveTransportBadgeVariant(live.transportState),
     ),
   );
-  pushRow(
-    bridgeRows,
-    "connected",
-    "Connected",
-    asBadgeCell(
-      live.connected ? "Yes" : "No",
-      live.connected ? "success" : "error",
-    ),
-  );
   if (bridgeState?.protocolVersion) {
     pushRow(
       bridgeRows,
       "protocol",
       "Protocol",
-      asTextCell(`v${bridgeState.protocolVersion}`),
+      asTextCell(`v${bridgeState.protocolVersion}`, "code"),
     );
   }
   if (bridgeState?.capabilities?.supportedProtocolVersions?.length) {
@@ -401,6 +395,7 @@ export function buildRuntimeSections(input: {
         bridgeState.capabilities.supportedProtocolVersions
           .map((version) => `v${version}`)
           .join(", "),
+        "code",
       ),
     );
   }
@@ -409,7 +404,7 @@ export function buildRuntimeSections(input: {
       bridgeRows,
       "last-contact",
       "Last contact",
-      asTextCell(formatDate(live.lastUpdatedAt), "muted"),
+      asTextCell(formatLastUpdated(live.lastUpdatedAt, now), "muted"),
     );
   }
   if (bridgeState?.error) {
@@ -436,9 +431,12 @@ export function buildRuntimeSections(input: {
   }
   pushRow(
     websocketRows,
-    "mode",
-    "Mode",
-    asTextCell(websocket.mode === "polling" ? "Polling fallback" : "WebSocket"),
+    "fallback",
+    "Fallback",
+    asBadgeCell(
+      websocket.mode === "polling" ? "Enabled" : "Disabled",
+      websocket.mode === "polling" ? "warning" : "secondary",
+    ),
   );
   if (websocket.failures > 0) {
     pushRow(
@@ -462,7 +460,7 @@ export function buildRuntimeSections(input: {
     pushRow(runtimeRows, "pid", "PID", asTextCell(String(runtime.pid), "code"));
   }
   if (runtime?.url) {
-    pushRow(runtimeRows, "url", "URL", asTextCell(runtime.url));
+    pushRow(runtimeRows, "url", "URL", asTextCell(runtime.url, "code"));
   }
   if (runtime?.startedAt) {
     pushRow(
@@ -475,7 +473,7 @@ export function buildRuntimeSections(input: {
       runtimeRows,
       "uptime",
       "Uptime",
-      asTextCell(formatUptime(runtime.startedAt), "muted"),
+      asTextCell(formatUptime(runtime.startedAt, now), "muted"),
     );
   }
   if (runtime?.lastError) {
@@ -509,7 +507,12 @@ export function buildRuntimeSections(input: {
     ].filter(Boolean) as string[];
 
     const actionText = actions.join(", ") || "none";
-    pushRow(capabilityRows, "actions", "Actions", asTextCell(actionText));
+    pushRow(
+      capabilityRows,
+      "actions",
+      "Actions",
+      asTextCell(actionText, "code"),
+    );
 
     if (actionText === "none") {
       pushRow(
@@ -533,6 +536,11 @@ export function buildRuntimeSections(input: {
   const sections: DashboardRuntimeSection[] = [
     controls,
     {
+      id: "runtime",
+      title: "Runtime",
+      rows: runtimeRows,
+    } satisfies DashboardTableSection,
+    {
       id: "bridge",
       title: "Bridge",
       rows: bridgeRows,
@@ -541,11 +549,6 @@ export function buildRuntimeSections(input: {
       id: "websocket",
       title: "WebSocket",
       rows: websocketRows,
-    } satisfies DashboardTableSection,
-    {
-      id: "runtime",
-      title: "Runtime",
-      rows: runtimeRows,
     } satisfies DashboardTableSection,
   ];
 
