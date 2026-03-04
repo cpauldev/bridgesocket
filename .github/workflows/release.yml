@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -27,6 +28,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
+          registry-url: "https://registry.npmjs.org"
 
       - name: Upgrade npm for trusted publishing
         run: |
@@ -98,10 +100,19 @@ jobs:
 
       - name: Publish to npm
         if: steps.npm_version.outputs.already_published != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
-          unset NODE_AUTH_TOKEN
           npm publish --access public --provenance
+
+      - name: Publish auth troubleshooting hint
+        if: failure() && steps.npm_version.outputs.already_published != 'true'
+        run: |
+          echo "npm publish authentication failed."
+          echo "Configure one of these:"
+          echo "1) npm trusted publisher for cpauldev/universa-kit + release.yml (recommended)"
+          echo "2) repository secret NPM_TOKEN (granular publish token)"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
