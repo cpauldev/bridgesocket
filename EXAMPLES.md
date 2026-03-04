@@ -1,136 +1,123 @@
 # Universa Examples
 
-## Document Meta
+This document explains the workspace examples under `examples/` and how to run/verify them.
 
-- Purpose: Explain how to set up and run the Universa framework examples.
-- Audience: Contributors and maintainers working on Universa internals.
-- Status: Active
+## What examples are included?
 
-## Overview
+Each example mounts the `example` package (from `packages/example`) into a framework dev server and exposes bridge routes under `/__universa/example/*`.
 
-The `examples/` directory contains nine framework examples that each show a working Universa integration with the `example` overlay package. Each example starts its own dev server with the example bridge mounted, so the overlay appears in the browser and connects to a local example runtime.
+| ID | Framework | Starting port |
+| --- | --- | --- |
+| `react` | React | 4600 |
+| `vue` | Vue | 4601 |
+| `sveltekit` | SvelteKit | 4602 |
+| `solid` | Solid | 4603 |
+| `astro` | Astro | 4604 |
+| `nextjs` | Next.js | 4605 |
+| `nuxt` | Nuxt | 4606 |
+| `vanilla` | Vanilla JS | 4607 |
+| `vinext` | Vinext | 4608 |
 
-| ID          | Framework  | Default port |
-| ----------- | ---------- | ------------ |
-| `react`     | React      | 4600         |
-| `vue`       | Vue        | 4601         |
-| `sveltekit` | SvelteKit  | 4602         |
-| `solid`     | Solid      | 4603         |
-| `astro`     | Astro      | 4604         |
-| `nextjs`    | Next.js    | 4605         |
-| `nuxt`      | Nuxt       | 4606         |
-| `vanilla`   | Vanilla JS | 4607         |
-| `vinext`    | Vinext     | 4608         |
-
-The runner assigns ports sequentially starting at `4600`. If one is already in use, it picks the next available port and continues from there.
+The runner starts searching at `4600` and automatically advances when a port is already in use.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) — used for the workspace, scripts, and running examples
-- Node.js 20 or 22 — required by some framework dev servers
+- [Bun](https://bun.sh) (workspace package manager + script runner)
+- Node.js 20 or 22 (required by some framework dev servers)
 
-## First-Time Setup
-
-Run the setup script once from the repository root. It installs workspace dependencies and builds the `universa-kit` and `example` packages that the examples depend on.
+## Setup (first run)
 
 ```bash
 bun run examples:setup
 ```
 
-This runs the following steps in order:
+This script:
 
-1. `bun install` — installs all workspace dependencies
-2. `bun run build` — builds the `universa-kit` package
-3. `bun run build` in `packages/example` — builds the `example` overlay package
+1. installs workspace dependencies (`bun install`)
+2. builds `universa-kit`
+3. builds `packages/example`
 
-After setup completes, no further build steps are needed to run examples unless source files change (see [Rebuilding after source changes](#rebuilding-after-source-changes)).
-
-### Force re-linking workspace packages
+Optional force re-link:
 
 ```bash
 bun run examples:setup --force
 ```
 
-Adds a `bun install --force` step after the initial build, which re-links all workspace packages. Use this if examples fail to resolve workspace packages correctly (e.g. after switching branches, pulling changes, or when Bun's workspace cache is stale).
+Use this if workspace linking becomes stale after branch switches or lockfile changes.
 
-## Running Examples
+## Run examples
 
-### All examples
+### Start all
 
 ```bash
 bun run examples
 ```
 
-Starts all nine framework dev servers concurrently. URLs are printed to the terminal as each server becomes ready. Browser tabs open automatically.
-
-### Specific examples
+### Start selected examples
 
 ```bash
 bun run examples react nextjs
 bun run examples vinext
-bun run examples vue sveltekit astro
 ```
 
-Pass one or more example IDs (from the table above) as arguments. Only the specified servers start.
-
-### Without opening browser tabs
+### Disable browser auto-open
 
 ```bash
 bun run examples --no-open
 bun run examples react nextjs --no-open
 ```
 
-Servers start normally but no browser tabs are opened.
-
-## Verifying Examples
+## Verify bridge wiring
 
 ```bash
 bun run verify:examples
 ```
 
-Checks each example's health and bridge state endpoints (`/__universa/example/health` and `/__universa/example/state`) and reports pass/fail per example. Requires all examples to be running.
+Verification checks each running example for:
 
-## Rebuilding after source changes
+- `GET /__universa/example/health`
+- `GET /__universa/example/state`
 
-When `src/` (Universa core) or `packages/example/src/` (example overlay) changes, rebuild before running examples:
+You can target specific examples:
 
 ```bash
-# Rebuild universa-kit
+bun run verify:examples react nuxt
+```
+
+## Rebuild guidance after changes
+
+Rebuild when you change:
+
+- `src/` (core package)
+- `packages/example/src/` (example overlay/runtime)
+
+Commands:
+
+```bash
 bun run build
-
-# Rebuild example overlay
 bun run build --filter=example
+```
 
-# Or run setup again to rebuild both
+Or run setup again:
+
+```bash
 bun run examples:setup
 ```
 
-Individual examples do not need rebuilding — they import the packages directly from the workspace.
+## Example structure
 
-## Example Structure
+Each `examples/<id>/` project is a standard framework app that imports the `example` preset and applies the framework adapter (`example().vite()`, `example().next(...)`, `example().astro()`, `example().nuxt()`, etc.).
 
-Each example lives under `examples/<id>/` and follows the same pattern:
+Shared dashboard UI primitives live in `examples/shared/ui` (`example-ui` workspace package).
 
-- Standard framework project (Next.js app router, SvelteKit, Astro, etc.)
-- `example` package wired in via factory preset creation (`example()`) and adapter methods (`example().vite()`, `example().next(...)`, `example().astro()`, `example().nuxt()`)
-- No framework-level `example/overlay` import is required; overlay mounting is handled by the `example` integration/runtime automatically
-- Shared UI components from `examples/shared/ui/` (`example-ui` workspace package)
+## Framework-specific notes
 
-### Vinext, Solid, and Nuxt notes
+- **Vinext + Solid**: both use Vite adapter integration.
+- **Vinext**: includes `resolve.dedupe` and `optimizeDeps.include` tweaks to avoid Bun workspace resolution issues.
+- **Nuxt**: examples runner uses `--no-fork` for stability during multi-example runs.
 
-Vinext and Solid both use the Vite adapter (`example().vite()`) directly because they run on Vite dev servers. Vinext additionally includes `resolve.dedupe` for React packages and `optimizeDeps.include` for `react-server-dom-webpack` to prevent Bun workspace resolution issues. See `examples/vinext/vite.config.ts`.
+## Troubleshooting
 
-Nuxt runs with `--no-fork` in the examples runner to avoid dev worker restart loops (`ECONNRESET`) during multi-example runs.
-
-## Shared UI package
-
-`examples/shared/ui/` is the `example-ui` workspace package. It exports:
-
-- `example-ui/styles.css` — base page styles
-- `example-ui/theme` — `getInitialTheme`, `applyTheme`, `toggleTheme`
-- `example-ui/bridge` — `phaseBadgeClass`, `transportBadgeClass` badge helpers
-
-## Notes
-
-- The `--port` flag is passed automatically by the runner; examples do not need to hard-code ports.
-- Press `Ctrl+C` to stop all running servers.
+- If examples fail to resolve workspace packages, run `bun run examples:setup --force`.
+- If a runner says another examples process is active, stop that process (the runner uses a lock file).
+- Stop all running examples with `Ctrl+C`.

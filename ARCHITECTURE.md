@@ -1,72 +1,89 @@
 # Universa Architecture
 
-## Document Meta
+This document explains how UniversaKit is structured internally and how requests move through the system.
 
-- Purpose: Explain the implementation structure and data flow of Universa components.
-- Audience: Maintainers, contributors, and reviewers of Universa internals.
-- Status: Active
-- Version: aligned with protocol v1
+## High-level model
 
-## Overview
+UniversaKit mounts a same-origin bridge (`/__universa/*`) onto a host dev server.
+That bridge provides:
 
-Universa is a framework-agnostic integration layer for in-browser development tools.
-It provides a same-origin bridge (`/__universa/*`) mounted onto host development servers.
+- runtime state and health routes
+- runtime control routes
+- a websocket events channel
+- proxying to runtime `/api/*`
 
-## Components
+## Subsystems
 
-### 1. Adapters
+### 1. Adapters (`src/adapters/*`)
 
-- `src/adapters/framework/*` for framework-level integration (Next, Angular CLI proxy config, Astro, Nuxt).
-- `src/adapters/server/*` for direct server integrations (Bun.serve, Node, Fastify, Hono).
-- `src/adapters/build/*` for build-tool dev-server hooks (Webpack, Rsbuild, Rspack).
+Adapters attach the bridge to framework/dev-server surfaces.
 
-Adapters are responsible for attaching the bridge to the right middleware and HTTP upgrade surfaces.
+- `src/adapters/framework/*`: Next.js, Nuxt, Astro, Angular CLI proxy helpers
+- `src/adapters/server/*`: Bun.serve, Node server, Fastify, Hono-on-Node
+- `src/adapters/build/*`: webpack-dev-server, Rsbuild, Rspack integration
+- `src/adapters/shared/*`: shared lifecycle/attachment utilities and Vite plugin entrypoints
 
-### 2. Bridge
+Responsibility: convert framework-specific hooks into standard bridge HTTP + websocket attachment points.
 
-`src/bridge/*` is the protocol surface:
+### 2. Bridge runtime (`src/bridge/*`)
 
-- `bridge.ts` orchestrator and composition root.
-- `router.ts` request matching and route keying.
-- `runtime-control.ts` state/runtime route handlers and auto-start policy.
-- `proxy.ts` runtime API forwarding with body/header fidelity.
-- `ws.ts` websocket upgrade validation and upstream runtime WS piping.
-- `events.ts` event fanout, heartbeat, and ordered IDs.
-- `errors.ts` standardized HTTP/upgrade error responses.
+Core protocol implementation.
 
-### 3. Runtime Helper
+- `bridge.ts`: orchestrator that wires routes, runtime helper, websocket server, and event bus
+- `router.ts`: pathname/query-safe route matching and route keys
+- `runtime-control.ts`: `/state`, `/runtime/status`, `/runtime/*` handlers
+- `proxy.ts`: `/api/*` passthrough to runtime
+- `ws.ts`: `/events` websocket upgrade and optional runtime websocket piping
+- `events.ts`: monotonic event IDs, event fanout, heartbeat lifecycle
+- `errors.ts`: bridge error envelopes and websocket upgrade rejection helpers
+- `prefix.ts`: normalized bridge prefix and rewrite source helpers
 
-`src/runtime/runtime-helper.ts` manages optional runtime process lifecycle:
+### 3. Runtime helper (`src/runtime/runtime-helper.ts`)
 
-- command spawn
-- health probing
-- start/restart/stop
-- runtime status tracking
-- control capability detection (command configured vs missing)
+Optional runtime process management:
 
-### 4. Client API
+- command spawn and stop
+- health probing (`healthPath` + timeout)
+- status transitions (`stopped`, `starting`, `running`, `stopping`, `error`)
+- control capability detection (`command` configured or not)
 
-`src/client/client.ts` provides a typed SDK for tool UIs:
+### 4. Preset composition (`src/preset.ts`, `src/preset-registry.ts`)
 
-- bridge state and health reads
-- runtime lifecycle calls
-- websocket event subscription
-- typed error handling
+Preset API for tool authors to expose one integration entrypoint.
 
-## Data Flow
+- normalizes identity -> namespace (`/__universa/<namespaceId>`)
+- computes effective adapter options (bridge prefix, adapter name, next bridge key)
+- composes framework adapters through registry mode while keeping imperative adapters local
+- derives optional client runtime context metadata for auto-mount behavior
+
+### 5. Client SDK (`src/client/*`)
+
+Typed helper layer for browser/Node clients.
+
+- `client.ts`: health/state/runtime APIs, websocket subscription, typed errors
+- `runtime-context.ts`: runtime context registration and auto-mount resolution
+
+## Request and event flow
 
 1. Host dev server starts.
-2. Adapter attaches bridge middleware and upgrade handlers.
-3. Browser tool UI calls bridge endpoints on same origin.
-4. Bridge routes to runtime-control, proxy, or websocket modules.
-5. Runtime helper starts/stops managed runtime when configured.
-6. Event bus broadcasts runtime updates to subscribed UI clients.
+2. Adapter attaches bridge middleware and upgrade listeners.
+3. Tool UI/CLI calls bridge routes on same origin.
+4. Bridge routes request to runtime-control, proxy, or websocket handling.
+5. Runtime helper starts/stops/checks runtime when required.
+6. Event bus emits runtime updates to websocket clients.
 
-## Reliability Guarantees
+## Key design decisions
+
+- **Protocol-first boundary**: all adapter integrations converge on one bridge route/event contract.
+- **Same-origin access**: avoids cross-origin complexity for local dev tooling.
+- **Capability-aware control**: runtime control endpoints report/behave based on `command` availability.
+- **Graceful websocket behavior**: bridge event socket stays useful even if runtime websocket proxy path closes.
+- **Scoped namespacing for presets**: multiple tool integrations can coexist in one host project.
+
+## Reliability properties
 
 - Query-safe route matching.
-- Configuration-aware capability reporting.
-- Deterministic error envelope.
-- Binary and multi-cookie proxy fidelity.
-- WebSocket subprotocol validation (`universa.v1+json`).
-- Singleton startup recovery for Next standalone bridge instances.
+- Deterministic bridge error envelope.
+- Binary request + multi-cookie proxy fidelity.
+- Websocket subprotocol validation (`universa.v1+json`).
+- Next.js standalone singleton keying with optional deterministic override.

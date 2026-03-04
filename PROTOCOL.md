@@ -1,36 +1,28 @@
 # Universa Bridge Protocol (v1)
 
-This document is the normative source of truth for the Universa bridge protocol (v1).
-
-## Document Meta
-
-- Purpose: Define the normative bridge contract that clients and adapters must follow.
-- Audience: Tool authors, adapter maintainers, client implementers.
-- Status: Active
-- Version: v1
+This document is the normative contract for the Universa bridge protocol implemented in `src/bridge/*`.
 
 ## Versioning
 
 - Protocol version: `1`
 - Bridge state field: `protocolVersion: "1"`
-- WebSocket subprotocol: `universa.v1+json`
+- Supported websocket subprotocol: `universa.v1+json`
 
-Backward-incompatible protocol changes must increment this version.
-Adding or updating adapter surfaces (framework, server, or build-tool) alone does not change protocol versioning.
-Adapter API naming changes also do not change protocol versioning as long as route/event/error semantics remain the same.
+Backward-incompatible protocol changes must increment the protocol version.
+Adapter API naming changes alone do not require a protocol version bump unless route/event/error semantics change.
 
-## Route Prefix
+## Route prefix
 
 Default bridge prefix: `/__universa`
 
-All routes below are defined relative to that prefix.
+Prefix behavior:
 
-Effective prefix normalization:
+- Custom prefixes are normalized to stay rooted under `/__universa`.
+- Preset integrations typically use `/__universa/<namespaceId>`.
 
-- Universa normalizes custom prefixes to remain rooted at `/__universa`.
-- Preset integrations typically use a namespaced prefix (for example `/__universa/<namespaceId>`).
+All routes below are relative to the effective bridge prefix.
 
-## HTTP Routes
+## HTTP routes
 
 - `GET /health`
 - `GET /state`
@@ -38,19 +30,41 @@ Effective prefix normalization:
 - `POST /runtime/start`
 - `POST /runtime/restart`
 - `POST /runtime/stop`
-- `ANY /api/*` (proxied to runtime as `/api/*`)
+- `ANY /api/*` (proxied to runtime `/api/*`)
 
-### Query Handling
+### Query handling
 
 Route matching is pathname-based and query-safe.
 
-Example:
+Example: `GET /__universa/state?source=ui` is handled as `GET /state`.
 
-- `GET /__universa/state?source=ui` is handled as `GET /state`.
+## Health and state contracts
 
-## State Contract
+### `GET /health`
 
-`GET /state` returns `UniversaBridgeState`.
+Returns:
+
+```ts
+{
+  ok: true;
+  bridge: true;
+  protocolVersion: "1";
+  transportState:
+    | "disconnected"
+    | "bridge_detecting"
+    | "runtime_starting"
+    | "connected"
+    | "degraded";
+  runtime: UniversaRuntimeStatus;
+  capabilities: UniversaBridgeCapabilities;
+  instance?: { id: string; label?: string };
+  error?: string;
+}
+```
+
+### `GET /state`
+
+Returns `UniversaBridgeState`:
 
 ```ts
 interface UniversaBridgeState {
@@ -63,42 +77,57 @@ interface UniversaBridgeState {
     | "degraded";
   runtime: UniversaRuntimeStatus;
   capabilities: UniversaBridgeCapabilities;
+  instance?: { id: string; label?: string };
+  error?: string;
 }
 ```
 
 `capabilities` are configuration-aware:
 
-- `hasRuntimeControl` and `can*Runtime` are `false` if runtime `command` is not configured.
-- `commandHost` is `"helper"` when runtime command control is available, otherwise `"host"`.
+- `hasRuntimeControl` and `can*Runtime` are `false` when runtime `command` is not configured.
+- `commandHost` can be:
+  - `"host"` when runtime command control is unavailable
+  - `"helper"` when helper runtime control is available and no fallback command is configured
+  - `"hybrid"` when helper runtime control is available with a fallback command present
 
-## Runtime Lifecycle Semantics
+## Runtime lifecycle semantics
 
 - `autoStart` defaults to `true`.
 - `GET /state` may auto-start runtime when `autoStart` is enabled.
 - `POST /runtime/stop` disables auto-start until `start` or `restart` is called.
 - `POST /runtime/stop` is idempotent and safe even when runtime command control is unavailable.
 
-## WebSocket Events
+Required missing-command behavior for `start`/`restart`:
 
-Endpoint: `WS /events`
+- HTTP status: `503`
+- `error.code = "runtime_start_failed"`
+- `error.details.reason = "missing_command"`
+
+## Websocket events (`WS /events`)
 
 Subprotocol behavior:
 
-- If `Sec-WebSocket-Protocol` is supplied, it must include `universa.v1+json`.
+- If `Sec-WebSocket-Protocol` is supplied, offered values must include `universa.v1+json`.
 - Unsupported offered protocol list is rejected with `426`.
+- On success, the negotiated protocol is `universa.v1+json`.
 
 Event union:
 
 - `runtime-status`
 - `runtime-error`
 
-All events include:
+All bridge events include:
 
 - `protocolVersion`
 - `eventId` (monotonic per bridge instance)
-- `timestamp` (milliseconds since epoch)
+- `timestamp` (epoch milliseconds)
 
-## Error Envelope
+Connection behavior:
+
+- Clients receive an immediate `runtime-status` event after websocket upgrade completes.
+- Runtime websocket proxying (when enabled) reuses this same socket and keeps bridge event delivery alive even if upstream runtime websocket closes.
+
+## Error envelope
 
 Bridge-generated non-2xx responses use:
 
@@ -122,21 +151,13 @@ Bridge-generated non-2xx responses use:
 }
 ```
 
-### Required Error Behaviors
+Proxy passthrough responses are not envelope-wrapped by default.
 
-- Missing runtime command on start/restart returns:
-  - status `503`
-  - `error.code = "runtime_start_failed"`
-  - `error.details.reason = "missing_command"`
-- Runtime unavailable proxy returns:
-  - status `503`
-  - `error.code = "runtime_unavailable"`
+## Proxy fidelity (`ANY /api/*`)
 
-## Proxy Fidelity
+Guarantees:
 
-`ANY /api/*` proxy guarantees:
-
-- Binary request payload forwarding (no forced UTF-8 conversion).
-- Multi-value `Set-Cookie` response header forwarding.
-- Upstream 5xx responses emit `runtime-error` events.
-- Upstream response status/body/headers are passed through (including non-2xx) and are not envelope-wrapped by default.
+- Binary request body forwarding (no forced UTF-8 conversion)
+- Multi-value `Set-Cookie` forwarding
+- Upstream 5xx emits a `runtime-error` event
+- Upstream status/headers/body pass through unchanged (including non-2xx)

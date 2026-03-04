@@ -10,65 +10,38 @@
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" height="28" style="vertical-align: middle;" /></a>
 </p>
 
-**Universa** allows developers to build cross-framework client applications that run locally during development as overlays, sidebars, toolbars, footers, and more. Users can install your package, start their project's dev server, and get the same experience across Next.js, Angular, Vue, Solid, Astro, Nuxt, SvelteKit, TanStack Start, Remix, Vinext, and more.
+UniversaKit is a framework-agnostic bridge for local developer tools. It mounts a same-origin control plane (`/__universa/*`) on your app's dev server so browser overlays, CLIs, and helper scripts can all use one protocol for:
 
-Every web framework ships its own dev server with different middleware APIs, plugin systems, and configuration hooks. There has been no standard way to mount a client application at the same origin across all of them — so tools built for Next.js don't work in Vite, tools built for Vite don't work in Angular, and so on.
+- bridge health/state
+- runtime start/restart/stop
+- websocket events
+- proxying tool APIs through the host origin
 
-Universa is a universal bridge that mounts a same-origin control plane (`/__universa/*`) on your host dev server. This lets browser UIs and local clients read state, stream events, control the runtime lifecycle, and proxy runtime APIs consistently across frameworks. Businesses can now offer richer service experiences as web applications while reaching as many developers as possible.
+## Table of Contents
 
-_Universa primarily targets browser-based dev UIs preferably injected into the shadow DOM for zero-bleed isolation, but the same bridge also works for non-UI local clients such as scripts and CLIs. Universa is compatible with tunnels like Cloudflare Tunnel._
-
-## Who Should Use This
-
-| You are...                                                | Should you use Universa directly? | Why                                                                                         |
-| --------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------- |
-| Building a developer tool (overlay/sidebar/control panel) | Yes                               | Universa provides framework adapters, bridge routes, runtime control, and event streaming.  |
-| Building custom internal developer tooling                | Yes                               | Use Universa directly to mount same-origin bridge APIs and optional runtime control in dev. |
-| Using a tool that already ships Universa integration      | No                                | Follow that tool's setup instructions; the integration is already handled.                  |
-
-## Table Of Contents
-
-- [What It Provides](#what-it-provides)
-- [Use Cases](#use-cases)
-- [Install](#install)
-- [Quick Start](#quick-start)
-- [Integration Surfaces](#integration-surfaces)
-- [API Naming Patterns](#api-naming-patterns)
+- [Who is this for?](#who-is-this-for)
+- [Installation](#installation)
+- [Problem this solves](#problem-this-solves)
+- [What it provides](#what-it-provides)
+- [Use cases](#use-cases)
+- [Quick start (Vite)](#quick-start-vite)
+- [Core concepts](#core-concepts)
+- [Integration surfaces](#integration-surfaces)
+- [Public API reference](#public-api-reference)
 - [Configuration](#configuration)
-- [Bridge Routes](#bridge-routes)
-- [Bridge Events](#bridge-events)
-- [Client API (`universa-kit/client`)](#client-api-universa-kitclient)
-- [Adapter Examples](#adapter-examples) (Next.js, Vinext, Astro, Nuxt, Angular CLI, Bun.serve, Node, Webpack)
-- [Examples](#examples)
-- [Next.js Bridge Keys](#nextjs-bridge-keys)
-- [Compatibility](#compatibility)
-- [Documentation](#documentation)
-- [Packaging](#packaging)
+- [Protocol summary](#protocol-summary)
+- [Usage examples](#usage-examples)
+- [Architecture overview](#architecture-overview)
+- [Design caveats](#design-caveats)
+- [Additional docs](#additional-docs)
 
-## What It Provides
+## Who is this for?
 
-- same-origin bridge routes (default prefix: `/__universa`)
-- runtime lifecycle control (`start`, `restart` require `command`; `stop` is idempotent)
-- runtime status state for UI and automation
-- versioned bridge contract (`protocolVersion: "1"`)
-- websocket event stream (`/__universa/events`) with ordered event IDs
-- API proxying from host origin to runtime origin (`/__universa/api/*`)
-- binary proxy fidelity and multi-value `Set-Cookie` forwarding
-- typed client helpers via `universa-kit/client`
-- framework/server/build-tool adapters
+Use UniversaKit directly if you are building a developer tool package (overlay/sidebar/panel/CLI companion) that should work across frameworks.
 
-Universa does not include a first-party UI, app scaffolding, or hosted cloud services.
+If you are an end user of a tool that already ships UniversaKit integration, use that tool's setup docs instead.
 
-## Use Cases
-
-- Cross-framework SaaS services with auth and subscription flows
-- AI code-assistance overlays with page annotations
-- Extension marketplaces for local development apps
-- UI component-library drag-and-drop and page editing tools
-- Error triage, debugging, and AI-assisted remediation workflows
-- Localization and internationalization management systems
-
-## Install
+## Installation
 
 ```bash
 npm i universa-kit
@@ -86,7 +59,31 @@ yarn add universa-kit
 bun add universa-kit
 ```
 
-## Quick Start
+## Problem this solves
+
+Framework dev servers expose different middleware/plugin APIs, so local tooling integrations are often framework-specific. UniversaKit standardizes this with one same-origin bridge contract mounted onto the host dev server.
+
+## What it provides
+
+- same-origin bridge endpoints under `/__universa/*`
+- runtime lifecycle control (`start`, `restart`, `stop`) when `command` is configured
+- runtime status and capability reporting for UIs/automation
+- websocket event stream with protocol versioning
+- `/api/*` passthrough proxy from host origin to runtime origin
+- framework/server/build-tool adapter surfaces plus a preset API for tool packages
+
+Non-goals:
+
+- no first-party UI or hosted service
+- no requirement that end users import UniversaKit directly when a tool already wraps it
+
+## Use cases
+
+- devtool overlays/sidebars/panels that should run across frameworks
+- local CLIs/scripts that need runtime status and control via the same bridge
+- internal developer platforms that expose same-origin local control APIs
+
+## Quick start (Vite)
 
 ```ts
 // vite.config.ts
@@ -103,64 +100,109 @@ export default defineConfig({
 });
 ```
 
-If your package wraps this integration, your end users typically only install your package and run their usual `dev` command.
+## Core concepts
 
-## Integration Surfaces
+- **Bridge path prefix**: defaults to `/__universa`.
+- **Runtime helper**: optional process manager for your tool runtime command.
+- **Protocol version**: current bridge protocol is `1`.
+- **Preset API**: recommended integration API for tool authors so users configure one entry point (`mytool().vite()`, `mytool().next(...)`, etc.).
 
-| Host setup                                                                                                      | Import path                | Use when                                         |
-| --------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------ |
-| Vite-based framework (React, Vue, Solid, SvelteKit, TanStack Start, Remix, React Router, Angular Vite pipeline) | `universa-kit/vite`        | You want one Vite plugin path.                   |
-| Vinext (Vite-based Next.js)                                                                                     | `universa-kit/vite`        | Vinext uses the Vite plugin path directly.       |
-| Next.js                                                                                                         | `universa-kit/next`        | You want a Next config wrapper and rewrite flow. |
-| Nuxt                                                                                                            | `universa-kit/nuxt`        | You want a Nuxt module integration.              |
-| Astro                                                                                                           | `universa-kit/astro`       | You want Astro integration hooks.                |
-| Angular CLI (non-Vite pipeline)                                                                                 | `universa-kit/angular/cli` | You need generated proxy config for `ng serve`.  |
-| `Bun.serve`                                                                                                     | `universa-kit/bun`         | You need Bun-native fetch/websocket handlers.    |
-| Node middleware + HTTP server                                                                                   | `universa-kit/node`        | You want direct server attachment.               |
-| Fastify                                                                                                         | `universa-kit/fastify`     | You want Fastify hook-based integration.         |
-| Hono on Node server                                                                                             | `universa-kit/hono`        | You want Hono Node server attachment.            |
-| webpack-dev-server                                                                                              | `universa-kit/webpack`     | You want build-tool level middleware wiring.     |
-| Rsbuild                                                                                                         | `universa-kit/rsbuild`     | You want build-tool level middleware wiring.     |
-| Rspack                                                                                                          | `universa-kit/rspack`      | You want build-tool level middleware wiring.     |
+## Integration surfaces
 
-Runtime note:
+| Host setup | Import path |
+| --- | --- |
+| Vite-based dev servers (React, Vue, Solid, SvelteKit, Remix, TanStack Start, Vinext, etc.) | `universa-kit/vite` |
+| Next.js | `universa-kit/next` |
+| Nuxt | `universa-kit/nuxt` |
+| Astro | `universa-kit/astro` |
+| Angular CLI proxy flow | `universa-kit/angular/cli` |
+| `Bun.serve` | `universa-kit/bun` |
+| Node middleware + HTTP server | `universa-kit/node` |
+| Fastify | `universa-kit/fastify` |
+| Hono on Node server | `universa-kit/hono` |
+| webpack-dev-server | `universa-kit/webpack` |
+| Rsbuild dev server | `universa-kit/rsbuild` |
+| Rspack dev server | `universa-kit/rspack` |
 
-- `universa-kit/node` refers to a Node-style server interface, not Node-only runtime.
-- for `Bun.serve`, use `universa-kit/bun`.
-- Universa supports Node and Bun runtimes.
+## Public API reference
 
-## API Naming Patterns
+### Primary exports
 
-| Pattern             | Meaning                                                    |
-| ------------------- | ---------------------------------------------------------- |
-| `createUniversa*`   | Create a plugin/module/integration value.                  |
-| `withUniversa*`     | Wrap and return an updated config object.                  |
-| `attachUniversaTo*` | Imperatively attach Universa to a running server instance. |
-| `startUniversa*`    | Start a standalone bridge/helper and return a handle.      |
+| API | Import |
+| --- | --- |
+| `createUniversaPreset` | `universa-kit/preset` |
+| `createUniversaClient` | `universa-kit/client` |
+| `createClientRuntimeContext` | `universa-kit/client-runtime` |
+| `startStandaloneUniversaBridgeServer` | `universa-kit` |
+| `createUniversaBridge` / `UniversaBridge` | `universa-kit` |
 
-Common APIs:
+### Adapter naming conventions
 
-| API                                   | Import path                   |
-| ------------------------------------- | ----------------------------- |
-| `createUniversaPreset`                | `universa-kit/preset`         |
-| `createUniversaClient`                | `universa-kit/client`         |
-| `createClientRuntimeContext`          | `universa-kit/client-runtime` |
-| `createUniversaVitePlugin`            | `universa-kit/vite`           |
-| `withUniversaNext`                    | `universa-kit/next`           |
-| `createUniversaAstroIntegration`      | `universa-kit/astro`          |
-| `createUniversaNuxtModule`            | `universa-kit/nuxt`           |
-| `createUniversaAngularCliProxyConfig` | `universa-kit/angular/cli`    |
-| `startUniversaAngularCliBridge`       | `universa-kit/angular/cli`    |
-| `withUniversaAngularCliProxyConfig`   | `universa-kit/angular/cli`    |
-| `attachUniversaToBunServe`            | `universa-kit/bun`            |
-| `attachUniversaToNodeServer`          | `universa-kit/node`           |
-| `attachUniversaToFastify`             | `universa-kit/fastify`        |
-| `attachUniversaToHonoNodeServer`      | `universa-kit/hono`           |
-| `withUniversaWebpackDevServer`        | `universa-kit/webpack`        |
-| `withUniversaRsbuild`                 | `universa-kit/rsbuild`        |
-| `withUniversaRspack`                  | `universa-kit/rspack`         |
+- `createUniversa*`: build a plugin/module/integration instance.
+- `withUniversa*`: wrap and return config.
+- `attachUniversaTo*`: attach to an existing server.
+- `startUniversa*`: start helper/standalone utilities.
 
-Preset helper (for integration packages that want one unified export):
+## Configuration
+
+Most adapter APIs accept shared bridge/runtime options.
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `bridgePathPrefix` | `string` | `"/__universa"` | Normalized to stay rooted under `/__universa`. |
+| `autoStart` | `boolean` | `true` | Auto-start runtime on state/proxy/events paths. |
+| `command` | `string` | none | Required for managed runtime start/restart. |
+| `args` | `string[]` | `[]` | Runtime command args. |
+| `cwd` | `string` | `process.cwd()` | Runtime working directory. |
+| `env` | `Record<string, string \| undefined>` | none | Extra runtime environment variables. |
+| `host` | `string` | `"127.0.0.1"` | Runtime host binding. |
+| `healthPath` | `string` | `"/api/version"` | Runtime health probe endpoint. |
+| `startTimeoutMs` | `number` | `15000` | Runtime startup timeout. |
+| `runtimePortEnvVar` | `string` | `"UNIVERSA_RUNTIME_PORT"` | Env var populated with selected runtime port. |
+| `fallbackCommand` | `string` | `"universa dev"` | Returned in some runtime-control error payloads. |
+| `eventHeartbeatIntervalMs` | `number` | `30000` | WS heartbeat for stale client cleanup. |
+| `proxyRuntimeWebSocket` | `boolean` | `true` | Enables runtime websocket proxying through bridge events socket. |
+| `instance` | `{ id: string; label?: string }` | none | Optional instance metadata in bridge state/health. |
+| `clientModule` | `string` | none | Dev-only side-effect module injection (typically set by presets). |
+
+### Preset-specific options (`createUniversaPreset`)
+
+- `identity` (**required**): `{ packageName: string; variant?: string }`
+- `client.module`: module specifier to inject in development
+- `client.enabled`: enable/disable client module injection
+- `client.autoMount`: default auto-mount hint
+- `composition`: `"registry" | "local"`
+- `instanceId`: stable suffix for multiple preset instances
+- `unsafeOverrides`: advanced adapter identity overrides
+
+## Protocol summary
+
+With prefix `/__universa` (or `/__universa/<namespaceId>` for presets):
+
+- `GET /health`
+- `GET /state`
+- `GET /runtime/status`
+- `POST /runtime/start`
+- `POST /runtime/restart`
+- `POST /runtime/stop`
+- `WS /events`
+- `ANY /api/*` proxied to runtime `/api/*`
+
+Behavior highlights:
+
+- Route matching is query-safe.
+- `GET /state` may auto-start runtime when `autoStart` is enabled.
+- `POST /runtime/stop` is idempotent and disables auto-start until start/restart.
+- Bridge-generated errors use `{ success: false, message, error }` envelope.
+- Proxied `/api/*` responses pass through status/headers/body (including non-2xx).
+
+For normative protocol details, see `PROTOCOL.md`.
+
+For adapter-specific snippets (Next keying, Bun/Node/Fastify/Hono servers, webpack/Rsbuild/Rspack, Astro/Nuxt, Angular CLI, and standalone bridge usage), see `INTEGRATION_GUIDE.md`.
+
+## Usage examples
+
+### Preset export for your tool package
 
 ```ts
 import { createUniversaPreset } from "universa-kit/preset";
@@ -171,134 +213,42 @@ export function myTool() {
     command: "mytool",
     args: ["dev"],
     fallbackCommand: "mytool dev",
+    client: {
+      module: "mytool/overlay",
+      autoMount: true,
+    },
   });
 }
 ```
 
-Framework adapters compose all registered presets automatically. If multiple integration packages add framework entries in the same config, duplicate calls are safely ignored at runtime so only one active framework wiring pass runs.
-
-Preset behavior:
-
-- namespace is derived from `identity` (for example `mytool` => `/__universa/mytool`)
-- framework adapters (`vite`, `next`, `nuxt`, `astro`, `webpack`, `rsbuild`, `rspack`) compose all registry presets by default
-- imperative adapters (`bun`, `node`, `fastify`, `hono`, `angularCli`) remain local to the created preset
-- runtime context keys (`rootId`, storage keys, instance key) are generated from `namespaceId`
-
-Preset options (`createUniversaPreset`):
-
-| Option             | Type                                                            | Default         | Notes                                                                  |
-| ------------------ | --------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------- |
-| `identity`         | `{ packageName: string; variant?: string }`                     | required        | Determines canonical namespace and route prefix.                       |
-| `client.module`    | `string`                                                        | none            | Module specifier to inject in dev (for example `"mytool/overlay"`).    |
-| `client.enabled`   | `boolean`                                                       | module presence | Enables/disables client injection without removing integration wiring. |
-| `client.autoMount` | `boolean`                                                       | `true`          | Default automount hint consumed by `resolveClientAutoMount`.           |
-| `composition`      | `"registry" \| "local"`                                         | `"registry"`    | Controls framework/build composition behavior.                         |
-| `instanceId`       | `string`                                                        | auto            | Optional stable suffix for multiple preset instances.                  |
-| `unsafeOverrides`  | `Partial<{ adapterName: string; nextBridgeGlobalKey: string }>` | none            | Advanced escape hatch for adapter identity keys.                       |
-
-Client auto-mount resolution order (when a `client.module` is configured):
-
-1. query override `?universaClient.<namespaceId>=true|false`
-2. global query override `?universaClient=true|false`
-3. localStorage key `universa:client:<namespaceId>:enabled`
-4. preset default (`client.autoMount`)
-
-When consuming bridge routes from a browser/CLI client in a preset-based integration, prefer:
+### Next.js
 
 ```ts
-createUniversaClient({ namespaceId: "mytool" });
+// next.config.ts
+import { myTool } from "mytool";
+
+export default myTool().next({ reactStrictMode: true });
 ```
 
-## Configuration
+### Vite (including Vinext)
 
-All adapters accept `UniversaAdapterOptions`, which extends bridge/runtime options.
+```ts
+// vite.config.ts
+import { myTool } from "mytool";
+import { defineConfig } from "vite";
 
-Core options:
+export default defineConfig({
+  plugins: [myTool().vite()],
+});
+```
 
-| Option                     | Type                                  | Default                   | Notes                                                                                                                                                |
-| -------------------------- | ------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `autoStart`                | `boolean`                             | `true`                    | Auto-start runtime on state/proxy/event paths.                                                                                                       |
-| `bridgePathPrefix`         | `string`                              | `"/__universa"`           | Route prefix for bridge endpoints. Universa always roots this under `"/__universa"` (for example `"/__universa/example"`).                           |
-| `fallbackCommand`          | `string`                              | `"universa dev"`          | Returned in error payloads for recovery UX.                                                                                                          |
-| `command`                  | `string`                              | none                      | Required for managed runtime lifecycle.                                                                                                              |
-| `args`                     | `string[]`                            | `[]`                      | Runtime process args.                                                                                                                                |
-| `cwd`                      | `string`                              | `process.cwd()`           | Runtime working directory.                                                                                                                           |
-| `env`                      | `Record<string, string \| undefined>` | none                      | Extra runtime env vars.                                                                                                                              |
-| `host`                     | `string`                              | `"127.0.0.1"`             | Runtime host binding.                                                                                                                                |
-| `healthPath`               | `string`                              | `"/api/version"`          | Health probe path used after spawn.                                                                                                                  |
-| `startTimeoutMs`           | `number`                              | `15000`                   | Runtime health timeout.                                                                                                                              |
-| `runtimePortEnvVar`        | `string`                              | `"UNIVERSA_RUNTIME_PORT"` | Env var populated with allocated port.                                                                                                               |
-| `eventHeartbeatIntervalMs` | `number`                              | `30000`                   | Ping interval for stale WS client cleanup.                                                                                                           |
-| `proxyRuntimeWebSocket`    | `boolean`                             | `true`                    | Proxy runtime WebSocket messages over the bridge events socket. Set to `false` to keep the events socket open without forwarding runtime WS frames.  |
-| `instance`                 | `{ id: string; label?: string }`      | none                      | Optional identifier included in bridge state and health responses, useful when multiple bridges share a prefix.                                      |
-| `clientModule`             | `string`                              | none                      | Package specifier auto-injected as a dev-only side-effect import (e.g. `"mypkg/overlay"`). Prefer `client.module` when using `createUniversaPreset`. |
-
-Adapter-specific options:
-
-| Option                | Type     | Default                         | Notes                                                                                               |
-| --------------------- | -------- | ------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `adapterName`         | `string` | `"universa-bridge"`             | Plugin/module name where applicable.                                                                |
-| `rewriteSource`       | `string` | derived from `bridgePathPrefix` | Internal rewrite pattern (`${bridgePathPrefix}/:path*`) computed from the normalized bridge prefix. |
-| `nextBridgeGlobalKey` | `string` | auto-generated in Next wrapper  | Override for deterministic Next standalone keying.                                                  |
-
-## Bridge Routes
-
-With default prefix `/__universa`:
-
-- `GET /__universa/health`
-- `GET /__universa/state`
-- `GET /__universa/runtime/status`
-- `POST /__universa/runtime/start`
-- `POST /__universa/runtime/restart`
-- `POST /__universa/runtime/stop`
-- `WS /__universa/events`
-- `ANY /__universa/api/*` (proxied to runtime as `/api/*`)
-
-If you integrate through `createUniversaPreset`, routes are namespaced as `/__universa/<namespaceId>/*` (for example `/__universa/mytool/state`).
-
-Notes:
-
-- `GET /state` may auto-start runtime when `autoStart` is enabled.
-- bridge routes are query-safe (for example `GET /__universa/state?source=ui`).
-- `POST /runtime/stop` disables auto-start until `start` or `restart` is called.
-- bridge-generated errors use envelope shape: `{ success: false, message, error: { code, message, retryable, details? } }`.
-- proxied `/api/*` responses pass through upstream status/body/headers and are not envelope-wrapped by default.
-
-## Bridge Events
-
-Current event union:
-
-- `runtime-status`
-- `runtime-error`
-
-Bridge-emitted events include:
-
-- `protocolVersion` (`"1"`)
-- `eventId` (monotonic per bridge instance)
-- `timestamp` (epoch milliseconds)
-
-WebSocket subprotocol:
-
-- supported: `universa.v1+json`
-- if a client sends `Sec-WebSocket-Protocol`, the offered list must include `universa.v1+json`; otherwise the bridge rejects with `426`
-- when accepted, the bridge negotiates `universa.v1+json`
-
-Type source: `src/types.ts` (`UniversaBridgeEvent`).
-
-## Client API (`universa-kit/client`)
+### Client SDK
 
 ```ts
 import { createUniversaClient } from "universa-kit/client";
 
-const client = createUniversaClient({
-  baseUrl: "http://127.0.0.1:3000",
-  namespaceId: "mytool", // resolves to "/__universa/mytool"
-  // bridgePathPrefix: "/__universa/mytool", // optional explicit override
-});
-
-const health = await client.getHealth();
+const client = createUniversaClient({ namespaceId: "mytool" });
 const state = await client.getState();
-const runtime = await client.startRuntime();
 
 const unsubscribe = client.subscribeEvents((event) => {
   console.log(event.type, event.eventId);
@@ -307,234 +257,35 @@ const unsubscribe = client.subscribeEvents((event) => {
 unsubscribe();
 ```
 
-In Node environments, pass a WebSocket implementation with `webSocketFactory` when needed.
+## Architecture overview
 
-Client route targeting:
+High-level internals:
 
-- prefer `namespaceId` for preset-based integrations
-- use `bridgePathPrefix` only as an explicit advanced override
+- `src/bridge/*`: HTTP/WS routing, runtime control routes, proxying, event fanout.
+- `src/runtime/runtime-helper.ts`: command lifecycle and health probing.
+- `src/adapters/*`: framework/server/build-tool integration points.
+- `src/client/*`: typed browser/Node client helpers.
+- `src/preset.ts` + `src/preset-registry.ts`: preset composition and registry behavior.
 
-## Adapter Examples
+For implementation details, see `ARCHITECTURE.md`.
 
-### Next.js
+## Design caveats
 
-```ts
-// next.config.ts
-import { withUniversaNext } from "universa-kit/next";
+- UniversaKit does **not** ship a first-party UI.
+- Runtime start/restart are unavailable when `command` is not configured.
+- `bridgePathPrefix` is normalized under `/__universa`.
+- Package is ESM-only (`"type": "module"`).
 
-export default withUniversaNext(
-  { reactStrictMode: true },
-  {
-    command: "node",
-    args: ["./scripts/dev-runtime.js"],
-  },
-);
-```
+## Additional docs
 
-### Vinext
+- [`INTEGRATION_GUIDE.md`](INTEGRATION_GUIDE.md): end-to-end guide for tool authors.
+- [`PROTOCOL.md`](PROTOCOL.md): normative bridge contract.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): internal architecture.
+- [`EXAMPLES.md`](EXAMPLES.md): workspace example setup and verification.
 
-Vinext is a Vite-based reimplementation of the Next.js API surface. Because it uses a Vite dev server, it uses the Vite adapter directly. Place `createUniversaVitePlugin` before the `vinext()` plugin.
-
-```ts
-// vite.config.ts
-import { createUniversaVitePlugin } from "universa-kit/vite";
-import vinext from "vinext";
-import { defineConfig } from "vite";
-
-export default defineConfig({
-  plugins: [
-    createUniversaVitePlugin({
-      command: "node",
-      args: ["./scripts/dev-runtime.js"],
-    }),
-    vinext(),
-  ],
-  resolve: {
-    // Prevent duplicate React instances in Bun workspaces (mirrors vinext CLI auto-config).
-    dedupe: [
-      "react",
-      "react-dom",
-      "react/jsx-runtime",
-      "react/jsx-dev-runtime",
-    ],
-  },
-  optimizeDeps: {
-    // react-server-dom-webpack ships CJS only. Force pre-bundling so Vite
-    // can serve it as ESM rather than a raw @fs/ path.
-    include: ["react-server-dom-webpack/client.browser"],
-  },
-});
-```
-
-Unlike `withUniversaNext`, no config wrapper or rewrite setup is needed — the Vite plugin attaches the bridge directly to Vinext's dev server.
-
-### Astro
-
-```ts
-// astro.config.ts
-import { defineConfig } from "astro/config";
-import { createUniversaAstroIntegration } from "universa-kit/astro";
-
-export default defineConfig({
-  integrations: [createUniversaAstroIntegration()],
-});
-```
-
-### Nuxt
-
-```ts
-// nuxt.config.ts
-import { defineNuxtConfig } from "nuxt/config";
-import { createUniversaNuxtModule } from "universa-kit/nuxt";
-
-export default defineNuxtConfig({
-  modules: [createUniversaNuxtModule()],
-});
-```
-
-### Angular CLI (Proxy Config)
-
-```ts
-// universa-kit.proxy.mjs
-import { writeFile } from "node:fs/promises";
-import { createUniversaAngularCliProxyConfig } from "universa-kit/angular/cli";
-
-const proxyConfig = await createUniversaAngularCliProxyConfig();
-await writeFile(
-  new URL("./proxy.universa-kit.json", import.meta.url),
-  JSON.stringify(proxyConfig, null, 2),
-);
-```
-
-Then:
+Docs checks:
 
 ```bash
-node universa-kit.proxy.mjs
-ng serve --proxy-config proxy.universa-kit.json
+bun run docs:lint
+bun run docs:check
 ```
-
-### Bun.serve
-
-```ts
-import {
-  attachUniversaToBunServe,
-  withUniversaBunServeFetch,
-  withUniversaBunServeWebSocketHandlers,
-} from "universa-kit/bun";
-
-const universa-kit = await attachUniversaToBunServe({
-  command: "node",
-  args: ["./scripts/dev-runtime.js"],
-});
-
-const server = Bun.serve({
-  fetch: withUniversaBunServeFetch(
-    (request) => new Response(`route: ${new URL(request.url).pathname}`),
-    universa-kit,
-  ),
-  websocket: withUniversaBunServeWebSocketHandlers(universa-kit),
-});
-
-await universa-kit.close();
-server.stop();
-```
-
-### Node Server
-
-```ts
-import express from "express";
-import http from "node:http";
-import { attachUniversaToNodeServer } from "universa-kit/node";
-
-const app = express();
-const server = http.createServer(app);
-
-await attachUniversaToNodeServer(
-  {
-    middlewares: { use: app.use.bind(app) },
-    httpServer: server,
-  },
-  { command: "node", args: ["./scripts/dev-runtime.js"] },
-);
-```
-
-### Webpack Dev Server
-
-```ts
-import { withUniversaWebpackDevServer } from "universa-kit/webpack";
-
-export default {
-  devServer: withUniversaWebpackDevServer({
-    setupMiddlewares: (middlewares) => middlewares,
-  }),
-};
-```
-
-## Next.js Bridge Keys
-
-`withUniversaNext(nextConfig, options)` uses a standalone bridge behind rewrites in development.
-
-Default behavior:
-
-- each wrapper call gets a unique per-instance key
-- this avoids collisions when multiple Next servers run in the same process
-
-Optional override:
-
-- set `nextBridgeGlobalKey` when you need deterministic keying or intentionally shared bridge state
-
-```ts
-import { withUniversaNext } from "universa-kit/next";
-
-export default withUniversaNext(
-  { reactStrictMode: true },
-  {
-    nextBridgeGlobalKey: "__UNIVERSA_NEXT_BRIDGE__:workspace-a",
-  },
-);
-```
-
-## Compatibility
-
-- runtime support target: Node.js and Bun
-- module format: ESM package (`"type": "module"`)
-- CI matrix: Node `20.x`, Node `22.x`, Bun `1.3.9`
-- validated by:
-  - unit tests
-  - adapter integration tests
-  - e2e runtime control tests
-  - e2e bridge event flow tests
-
-## Documentation
-
-- `README.md`: product overview, installation, and integration entrypoints
-- `INTEGRATION_GUIDE.md`: end-to-end example for building a CLI-style tool package and user project setup
-- `PROTOCOL.md`: normative bridge contract (routes, events, errors, versioning)
-- `ARCHITECTURE.md`: internal component boundaries and data flow
-- `EXAMPLES.md`: setup and usage guide for the framework examples
-
-Guardrails:
-
-- `bun run docs:lint` validates markdown docs
-- `bun run docs:check` enforces docs synchronization for protocol/API-impacting source changes
-
-## Examples
-
-See [`EXAMPLES.md`](EXAMPLES.md) for full setup and usage instructions.
-
-Quick start:
-
-```bash
-bun run examples:setup  # install deps and build packages (once)
-bun run examples        # start all nine framework examples
-```
-
-Available example IDs: `react`, `vue`, `sveltekit`, `solid`, `astro`, `nextjs`, `nuxt`, `vanilla`, `vinext`.
-
-## Packaging
-
-Published artifacts are built from `src/` into `dist/` with declaration files:
-
-- runtime JS and `.d.ts` output in `dist`
-- package includes `README.md`, `PROTOCOL.md`, `ARCHITECTURE.md`, and `LICENSE`
-- release guard via `prepublishOnly`: build + test + typecheck

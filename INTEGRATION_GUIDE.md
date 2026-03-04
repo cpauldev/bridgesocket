@@ -1,23 +1,16 @@
 # Universa Integration Guide
 
-This is a basic tool-author guide.
+This guide shows how to ship a tool package that exposes one integration API and works across frameworks via UniversaKit.
 
-Goal:
+## 1) Build a runtime command
 
-1. Your package exposes one integration API (`acmetool`).
-2. Your users add one config line and keep using normal `dev`.
-
-The example tool below is `acmetool`.
-
-## 1. Build a Runtime Command
-
-Your tool should have a command Universa can start, usually `acmetool dev`.
+Your tool runtime should listen on the port provided by `UNIVERSA_RUNTIME_PORT` (default env var used by UniversaKit).
 
 ```js
 // runtime/dev-server.mjs
 import { createServer } from "node:http";
 
-const port = Number(process.env.ACMETOOL_RUNTIME_PORT ?? 3456);
+const port = Number(process.env.UNIVERSA_RUNTIME_PORT ?? 3456);
 
 const server = createServer((req, res) => {
   if (req.url === "/api/version") {
@@ -48,32 +41,15 @@ const command = process.argv[2];
 
 if (command === "dev") {
   await import("../runtime/dev-server.mjs");
-  return;
-}
-
-if (command === "setup") {
+} else if (command === "setup") {
   console.log("acmetool setup: write project config files here.");
-  return;
-}
-
-console.log("Usage: acmetool <setup|dev>");
-process.exit(1);
-```
-
-```json
-// package.json
-{
-  "name": "acmetool",
-  "type": "module",
-  "bin": {
-    "acmetool": "./bin/acmetool.mjs"
-  }
+} else {
+  console.log("Usage: acmetool <setup|dev>");
+  process.exit(1);
 }
 ```
 
-## 2. Export a Preset from Your Package (Recommended)
-
-This is the simplest integration shape for tool authors and users.
+## 2) Export a preset (recommended)
 
 ```ts
 // src/index.ts
@@ -85,60 +61,32 @@ export function acmetool() {
     command: "acmetool",
     args: ["dev"],
     fallbackCommand: "acmetool dev",
+    client: {
+      module: "acmetool/overlay",
+      autoMount: true,
+    },
   });
 }
 ```
 
-```json
-// package.json
-{
-  "exports": {
-    ".": "./dist/index.js"
-  }
-}
-```
+Why presets are recommended:
 
-With this shape, users always import from one place:
+- users import from one place (`acmetool`)
+- namespace + bridge prefix are derived automatically
+- framework adapters can compose safely when multiple presets are present
 
-- `import { acmetool } from "acmetool"`
+## 3) User integration examples
 
-Framework adapters compose all registered presets automatically. If users add multiple package integrations in the same config (two imports that use Universa), duplicate framework calls are ignored at runtime.
-
-Presets also derive bridge path + runtime context keys automatically from `identity.packageName`. Users do not need to define key prefixes, storage keys, or global key names.
-
-## 3. User Integration Example (Next.js)
-
-```bash
-npm i acmetool
-```
+### Next.js
 
 ```ts
 // next.config.ts
 import { acmetool } from "acmetool";
 
-const nextConfig = {};
-
-export default acmetool().next(nextConfig);
+export default acmetool().next({});
 ```
 
-Then run normal app dev:
-
-```bash
-npm run dev
-```
-
-Bridge routes are mounted on same origin:
-
-- `GET /__universa/acmetool/health`
-- `GET /__universa/acmetool/state`
-- `WS /__universa/acmetool/events`
-- `ANY /__universa/acmetool/api/*`
-
-## 4. User Integration Example (Vite)
-
-```bash
-npm i acmetool
-```
+### Vite
 
 ```ts
 // vite.config.ts
@@ -150,107 +98,209 @@ export default defineConfig({
 });
 ```
 
-Then run:
+Then users run their normal app dev command.
 
-```bash
-npm run dev
-```
+## 4) Bridge routes users get
 
-## 5. Optional Browser Overlay Example (Shadow DOM)
+Preset integrations are namespaced:
 
-This example mounts a minimal Shadow DOM overlay and wires runtime controls.
+- `GET /__universa/acmetool/health`
+- `GET /__universa/acmetool/state`
+- `WS /__universa/acmetool/events`
+- `ANY /__universa/acmetool/api/*`
+
+## 5) Optional browser overlay client
 
 ```ts
 import { createUniversaClient } from "universa-kit/client";
 
-const client = createUniversaClient({
-  namespaceId: "acmetool",
-});
-
-const host = document.createElement("div");
-host.id = "acmetool-universa-kit-overlay";
-document.body.appendChild(host);
-
-const shadow = host.attachShadow({ mode: "open" });
-shadow.innerHTML = `
-  <div>
-    <strong>AcmeTool Overlay</strong>
-    <div>Transport: <span data-transport>...</span></div>
-    <div>Runtime: <span data-phase>...</span></div>
-    <div>PID: <span data-pid>-</span></div>
-    <div>URL: <span data-url>-</span></div>
-    <div>Error: <span data-error>-</span></div>
-    <button data-start>Start</button>
-    <button data-restart>Restart</button>
-    <button data-stop>Stop</button>
-    <button data-refresh>Refresh</button>
-  </div>
-`;
-
-const transportEl = shadow.querySelector("[data-transport]") as HTMLSpanElement;
-const phaseEl = shadow.querySelector("[data-phase]") as HTMLSpanElement;
-const pidEl = shadow.querySelector("[data-pid]") as HTMLSpanElement;
-const urlEl = shadow.querySelector("[data-url]") as HTMLSpanElement;
-const errorEl = shadow.querySelector("[data-error]") as HTMLSpanElement;
-
-const startBtn = shadow.querySelector("[data-start]") as HTMLButtonElement;
-const restartBtn = shadow.querySelector("[data-restart]") as HTMLButtonElement;
-const stopBtn = shadow.querySelector("[data-stop]") as HTMLButtonElement;
-const refreshBtn = shadow.querySelector("[data-refresh]") as HTMLButtonElement;
-
-function renderState(state: Awaited<ReturnType<typeof client.getState>>) {
-  transportEl.textContent = state.transportState;
-  phaseEl.textContent = state.runtime.phase;
-  pidEl.textContent =
-    state.runtime.pid === null ? "-" : String(state.runtime.pid);
-  urlEl.textContent = state.runtime.url ?? "-";
-  errorEl.textContent = state.runtime.lastError ?? "-";
-  startBtn.disabled = !state.capabilities.canStartRuntime;
-  restartBtn.disabled = !state.capabilities.canRestartRuntime;
-  stopBtn.disabled = !state.capabilities.canStopRuntime;
-}
-
-async function refresh() {
-  const state = await client.getState();
-  renderState(state);
-}
-
-startBtn.onclick = async () => {
-  await client.startRuntime();
-  await refresh();
-};
-restartBtn.onclick = async () => {
-  await client.restartRuntime();
-  await refresh();
-};
-stopBtn.onclick = async () => {
-  await client.stopRuntime();
-  await refresh();
-};
-refreshBtn.onclick = () => {
-  void refresh();
-};
+const client = createUniversaClient({ namespaceId: "acmetool" });
+const state = await client.getState();
+console.log(state.runtime.phase);
 
 const unsubscribe = client.subscribeEvents((event) => {
   if (event.type === "runtime-status") {
-    phaseEl.textContent = event.status.phase;
-    pidEl.textContent =
-      event.status.pid === null ? "-" : String(event.status.pid);
-    urlEl.textContent = event.status.url ?? "-";
-    errorEl.textContent = event.status.lastError ?? "-";
+    console.log(event.status.phase);
   }
 });
 
-void refresh();
 window.addEventListener("beforeunload", () => unsubscribe());
 ```
 
-## 6. Optional: Framework-Specific Wrappers
+## 6) Important notes
 
-If you prefer names like `withAcmeTool(...)` or `createAcmeToolVitePlugin(...)`, you can still wrap specific adapters. The preset export above is just the minimal default.
+- If `command` is omitted, `start`/`restart` runtime controls are unavailable by design.
+- `stop` remains idempotent.
+- `bridgePathPrefix` is normalized under `/__universa`.
+- Keep your public API stable (`acmetool().vite()`, `acmetool().next(...)`, etc.).
 
-## 7. Notes
 
-- If `command`/`args` are not configured, runtime `start` and `restart` are disabled by design.
-- Keep your public API stable (`acmetool().next()`, `acmetool().vite()`, etc.).
-- Most frameworks need one config change, but some ecosystems may require extra setup steps.
+## 7) Adapter-specific notes (when presets are not your integration surface)
+
+If you expose framework-specific APIs instead of a preset, keep these behaviors documented for users.
+
+### Next.js bridge keying
+
+`withUniversaNext` creates isolated bridge keys by default. You can set `nextBridgeGlobalKey` for deterministic keying.
+
+```ts
+import { withUniversaNext } from "universa-kit/next";
+
+export default withUniversaNext(
+  {},
+  {
+    nextBridgeGlobalKey: "__UNIVERSA_NEXT_BRIDGE__:workspace-a",
+  },
+);
+```
+
+### Bun.serve integration
+
+```ts
+import {
+  attachUniversaToBunServe,
+  withUniversaBunServeFetch,
+  withUniversaBunServeWebSocketHandlers,
+} from "universa-kit/bun";
+
+const universa = await attachUniversaToBunServe({
+  command: "acmetool",
+  args: ["dev"],
+});
+
+const server = Bun.serve({
+  fetch: withUniversaBunServeFetch((request) => new Response("ok"), universa),
+  websocket: withUniversaBunServeWebSocketHandlers(universa),
+});
+
+// cleanup
+await universa.close();
+server.stop();
+```
+
+### Node server integration
+
+```ts
+import express from "express";
+import http from "node:http";
+import { attachUniversaToNodeServer } from "universa-kit/node";
+
+const app = express();
+const server = http.createServer(app);
+
+await attachUniversaToNodeServer(
+  {
+    middlewares: { use: app.use.bind(app) },
+    httpServer: server,
+  },
+  {
+    command: "acmetool",
+    args: ["dev"],
+  },
+);
+```
+
+### webpack-dev-server integration
+
+```ts
+import { withUniversaWebpackDevServer } from "universa-kit/webpack";
+
+export default {
+  devServer: withUniversaWebpackDevServer({
+    setupMiddlewares: (middlewares) => middlewares,
+  }),
+};
+```
+
+
+### Fastify integration
+
+```ts
+import Fastify from "fastify";
+import { attachUniversaToFastify } from "universa-kit/fastify";
+
+const fastify = Fastify();
+
+await attachUniversaToFastify(fastify, {
+  command: "acmetool",
+  args: ["dev"],
+});
+```
+
+### Hono (Node server) integration
+
+`attachUniversaToHonoNodeServer` uses the same Node-style server surface as `attachUniversaToNodeServer`.
+
+```ts
+import { attachUniversaToHonoNodeServer } from "universa-kit/hono";
+
+await attachUniversaToHonoNodeServer(
+  {
+    middlewares: {
+      use: (handler) => {
+        // register the handler on your Node HTTP middleware chain
+      },
+    },
+    httpServer,
+  },
+  {
+    command: "acmetool",
+    args: ["dev"],
+  },
+);
+```
+
+### Rsbuild and Rspack integration
+
+```ts
+import { withUniversaRsbuild } from "universa-kit/rsbuild";
+import { withUniversaRspack } from "universa-kit/rspack";
+
+export const rsbuildConfig = withUniversaRsbuild({});
+export const rspackConfig = withUniversaRspack({});
+```
+
+### Astro and Nuxt integration
+
+```ts
+import { defineConfig as defineAstroConfig } from "astro/config";
+import { createUniversaAstroIntegration } from "universa-kit/astro";
+
+export default defineAstroConfig({
+  integrations: [createUniversaAstroIntegration()],
+});
+```
+
+```ts
+import { defineNuxtConfig } from "nuxt/config";
+import { createUniversaNuxtModule } from "universa-kit/nuxt";
+
+export default defineNuxtConfig({
+  modules: [createUniversaNuxtModule()],
+});
+```
+
+### Angular CLI proxy integration
+
+```ts
+import { createUniversaAngularCliProxyConfig } from "universa-kit/angular/cli";
+
+const proxyConfig = await createUniversaAngularCliProxyConfig({
+  command: "acmetool",
+  args: ["dev"],
+});
+```
+
+### Standalone bridge (tooling/tests)
+
+```ts
+import { startStandaloneUniversaBridgeServer } from "universa-kit";
+
+const standalone = await startStandaloneUniversaBridgeServer({
+  command: "acmetool",
+  args: ["dev"],
+});
+
+console.log(standalone.baseUrl);
+await standalone.close();
+```
